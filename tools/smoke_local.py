@@ -1,0 +1,146 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+class FakeBot:
+    def __init__(self) -> None:
+        self.messages: list[tuple[int, str | None]] = []
+
+    async def send_message(self, chat_id: int, text: str | None = None, **kwargs):
+        self.messages.append((chat_id, text))
+        return SimpleNamespace(message=SimpleNamespace(body=SimpleNamespace(mid="smoke-mid")))
+
+    async def get_me(self):
+        return SimpleNamespace(username="smoke_bot")
+
+    async def download(self, source: str, destination: str | Path):
+        dest = Path(destination)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"smoke-media")
+        return dest
+
+
+async def main() -> None:
+    with tempfile.TemporaryDirectory(prefix="maxvideobot_smoke_") as tmp:
+        db_path = str(Path(tmp) / "database.db")
+        media_dir = str(Path(tmp) / "media")
+        demo_dir = str(Path(tmp) / "demos")
+        os.environ["DATABASE_PATH"] = db_path
+        os.environ["MEDIA_TEMP_DIR"] = media_dir
+        os.environ["MEDIA_DEMO_DIR"] = demo_dir
+        os.environ.setdefault("MAX_BOT_TOKEN", "smoke-token")
+        os.environ.setdefault("ADMIN_IDS", "")
+        os.environ.setdefault("ADMIN_NOTIFY_IDS", "")
+
+        from database import crud
+        from database.db import setup
+        from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _persist_demo_media, _persist_pending_media, _process_start, router
+        from max_handlers.utils import get_media_source
+        from max_keyboards.main_menu import main_menu_kb
+
+        await setup(db_path)
+
+        kb = main_menu_kb()
+        assert kb is not None
+        assert hasattr(router, "message_created")
+        assert hasattr(router, "message_callback")
+        assert hasattr(router, "bot_started")
+
+        await crud.create_promocode(db_path, "SMOKE", 7)
+        bot = FakeBot()
+        await _process_start(bot, 1001, 1001, "promo_SMOKE", "smoke_user")
+        balance = await crud.get_balance(db_path, 1001)
+        assert balance == 17, f"expected starter 10 + promo 7, got {balance}"
+        assert len(bot.messages) >= 3
+
+        event = SimpleNamespace(
+            message=SimpleNamespace(
+                body=SimpleNamespace(
+                    attachments=[
+                        {
+                            "type": "image",
+                            "width": 800,
+                            "height": 600,
+                            "payload": {"url": "https://example.com/image.jpg"},
+                        }
+                    ]
+                )
+            )
+        )
+        source, width, height = get_media_source(event, "image")
+        assert source == "https://example.com/image.jpg"
+        assert width == 800
+        assert height == 600
+
+        video_event = SimpleNamespace(
+            message=SimpleNamespace(
+                body=SimpleNamespace(
+                    attachments=[
+                        {
+                            "type": "video",
+                            "width": 1280,
+                            "height": 720,
+                            "urls": {"mp4_240": "https://example.com/video.mp4"},
+                            "thumbnail": {"url": "https://example.com/thumb.jpg"},
+                        }
+                    ]
+                )
+            )
+        )
+        video_source, video_width, video_height = get_media_source(video_event, "video")
+        assert video_source == "https://example.com/video.mp4"
+        assert video_width == 1280
+        assert video_height == 720
+
+        cached = await _persist_pending_media(bot, 1001, "https://example.com/image.jpg")
+        assert Path(cached).exists()
+        _cleanup_pending_media(cached)
+        assert not Path(cached).exists()
+
+        cached_for_tx = await _persist_pending_media(bot, 1001, "https://example.com/image.jpg")
+        tx_id = await crud.create_transaction(
+            db_path,
+            user_id=1001,
+            amount=199,
+            currency="RUB",
+            credits=60,
+            provider="yookassa",
+            status="pending",
+            provider_payment_id="smoke-payment",
+            payload="{}",
+        )
+        await crud.create_pending_action(
+            db_path,
+            tx_id,
+            1001,
+            "effect",
+            json.dumps({"type": "effect", "photo_file_id": cached_for_tx}),
+        )
+        assert Path(cached_for_tx).exists()
+        await _cleanup_pending_action_for_tx(tx_id)
+        assert not Path(cached_for_tx).exists()
+        assert await crud.consume_pending_action(db_path, tx_id) is None
+
+        demo = await _persist_demo_media(bot, 1001, "https://example.com/demo.jpg", "photo")
+        assert Path(demo).exists()
+        assert Path(demo).parent == Path(demo_dir)
+
+        print("SMOKE OK")
+        print(f"db={db_path}")
+        print(f"messages={len(bot.messages)}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

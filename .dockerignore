@@ -1,0 +1,15 @@
+.env
+.git
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+media/temp/*
+!media/temp/.gitkeep
+media/demos/*
+!media/demos/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+telegram_video_bot/
