@@ -47,6 +47,7 @@ python -m compileall main.py config.py max_handlers max_keyboards services datab
 - pending-payment guard теперь блокирует любую активную pending-оплату пользователя, а не только тот же provider;
 - admin-demo из MAX сохраняются в `MEDIA_DEMO_DIR`;
 - сидер эффектов не переносит Telegram `file_id` в MAX demo-поля и не перетирает уже сохраненные demo;
+- ссылки `/invite`, `/adtag` и YooKassa return URL корректно используют полный `MAX_BOT_LINK_BASE`;
 - добавлены `tools/smoke_local.py` и `tools/max_payload_probe.py`.
 
 ### Проверки после стабилизации

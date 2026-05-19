@@ -79,6 +79,21 @@ def _parse_start_payload(args: list[str]) -> str | None:
     return args[0].strip() if args else None
 
 
+def _bot_link(username: str | None = None) -> str:
+    base = config.max_bot_link_base.rstrip("/")
+    if not base:
+        base = "https://max.ru"
+    if username and base in {"https://max.ru", "http://max.ru"}:
+        return f"{base}/{username}"
+    return base
+
+
+def _start_link(payload: str, username: str | None = None) -> str:
+    base = _bot_link(username)
+    joiner = "&" if "?" in base else "?"
+    return f"{base}{joiner}start={payload}"
+
+
 async def _process_start(bot: MaxBotAdapter, target_id: int, user_id: int, payload: str | None, username: str | None = None) -> None:
     utm_source = referrer_id = promo_code = None
     if payload:
@@ -195,8 +210,7 @@ async def _show_invite(bot: MaxBotAdapter, target_id: int, user_id: int) -> None
         username = getattr(me, "username", None)
     except Exception:
         username = None
-    link_base = config.max_bot_link_base.rstrip("/")
-    link = f"{link_base}/{username}?start=ref_{user_id}" if username else f"{link_base}?start=ref_{user_id}"
+    link = _start_link(f"ref_{user_id}", username)
     await bot.send_message(
         target_id,
         "🤝 <b>Пригласить друга</b>\n"
@@ -893,7 +907,7 @@ async def _start_yoo_payment(bot: MaxBotAdapter, user_id: int, plan_id: str, *, 
             username_bot = getattr(me, "username", None)
         except Exception:
             username_bot = None
-        return_url = f"{config.max_bot_link_base.rstrip('/')}/{username_bot}" if username_bot else config.max_bot_link_base.rstrip("/")
+        return_url = _bot_link(username_bot)
         payment = yk.create_payment(
             amount_rub=plan.price_rub,
             description=f"Подписка {plan.title}",
@@ -1108,7 +1122,7 @@ async def _handle_admin_command(event, bot: MaxBotAdapter, user_id: int, target_
                 username = getattr(me, "username", None)
             except Exception:
                 username = None
-            link = f"{config.max_bot_link_base.rstrip('/')}/{username}?start={args[0]}" if username else f"{config.max_bot_link_base.rstrip()}?start={args[0]}"
+            link = _start_link(args[0], username)
             await bot.send_message(target_id, f"Ссылка для метки <code>{args[0]}</code>:\n<code>{link}</code>")
     elif command == "genpromo":
         if not args or not args[0].isdigit():

@@ -136,6 +136,7 @@ FSM реализован в `max_handlers/state.py`.
 - `requirements.txt` закрепляет `maxapi==1.0.0`, под который проверялась текущая реализация.
 - admin-demo из MAX сохраняются в `MEDIA_DEMO_DIR`, чтобы не хранить временные attachment URL.
 - `database/seed_effects.py` больше не записывает старые Telegram `file_id` в demo-поля и не затирает существующие MAX-demo.
+- `MAX_BOT_LINK_BASE` может быть полным MAX URL бота; deeplink и YooKassa return URL строятся через общий helper.
 
 Осталось:
 - live smoke в MAX с настоящим `MAX_BOT_TOKEN`;
