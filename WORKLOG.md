@@ -67,3 +67,43 @@ python tools/smoke_local.py
 - ЮKassa redirect + polling.
 - Pending action после оплаты из середины генерации.
 - Smart-рассылка на тестовой аудитории.
+
+## 2026-05-19
+
+### Деплой
+
+- Создан локальный Git-репозиторий и опубликован `main` в `https://github.com/NNFall/maxvideobot`.
+- На сервере `185.171.83.116` развернут checkout в `/root/maxvideobot`.
+- Серверный `.env` создан отдельно от Git и не коммитится.
+- Docker запущен через `docker compose up -d`.
+- Внешние данные примонтированы:
+  - `/root/maxvideobot/data` -> `/app/data`
+  - `/root/maxvideobot/media` -> `/app/media`
+- База создана и засеяна через `python database/seed_effects.py`.
+
+### Проверки деплоя
+
+```bash
+docker compose ps
+docker compose logs --tail=120 bot
+docker compose exec -T bot python - <<'PY'
+import asyncio
+from config import load_config
+from database import crud
+
+async def main():
+    cfg = load_config()
+    print(cfg.database_path, cfg.media_temp_dir, cfg.media_demo_dir)
+    print(len(await crud.list_effects(cfg.database_path, active_only=True, effect_type='video')))
+    print(len(await crud.list_effects(cfg.database_path, active_only=True, effect_type='photo')))
+
+asyncio.run(main())
+PY
+```
+
+Результат:
+- контейнер `maxvideobot-bot-1` в статусе `running`;
+- restart count `0`;
+- polling стартовал;
+- бот авторизован как `@id644009650098_3_bot`;
+- в БД активны 21 video-effect и 27 photo-effect.

@@ -175,3 +175,18 @@ FSM реализован в `max_handlers/state.py`.
 3. Отправить фото в каждый фото/видео сценарий и посмотреть фактический attachment payload.
 4. При необходимости поправить `get_media_source`.
 5. Проверить тестовую ЮKassa-оплату и pending action.
+
+## Деплой 2026-05-19
+
+- GitHub: `https://github.com/NNFall/maxvideobot`, ветка `main`.
+- Сервер: `185.171.83.116`.
+- Рабочая папка: `/root/maxvideobot`.
+- Секреты хранятся только в серверном `/root/maxvideobot/.env`, файл не коммитится.
+- Docker Compose запущен с внешними volume:
+  - `/root/maxvideobot/data` -> `/app/data`;
+  - `/root/maxvideobot/media` -> `/app/media`.
+- База SQLite: `/root/maxvideobot/data/database.db`.
+- Media temp/demo:
+  - `/root/maxvideobot/media/temp`;
+  - `/root/maxvideobot/media/demos`.
+- Проверка после деплоя: контейнер `maxvideobot-bot-1` running, restart count `0`, polling стартовал, бот авторизован как `@id644009650098_3_bot`.
