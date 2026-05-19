@@ -52,7 +52,7 @@ async def main() -> None:
 
     bot = Bot(token=cfg.max_bot_token, format=ParseMode.HTML)
     adapter = MaxBotAdapter(bot)
-    dp = Dispatcher()
+    dp = Dispatcher(use_create_task=True)
     dp.include_routers(*all_routers)
 
     await _set_commands(bot)

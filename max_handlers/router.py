@@ -14,6 +14,7 @@ from database import crud
 from max_handlers.state import clear_state, set_state, state_data, state_name, update_state
 from max_handlers.utils import (
     answer_callback,
+    answer_callback_message,
     callback_payload,
     get_bot,
     get_media_source,
@@ -62,6 +63,7 @@ DOWNLOAD_LIMIT_BYTES = DOWNLOAD_LIMIT_MB * 1024 * 1024
 
 _pending_yoo_tasks: dict[int, asyncio.Task] = {}
 _payment_locks: dict[int, asyncio.Lock] = {}
+GENERATION_RUNNING_STATE = "generation_running"
 
 
 def _adapter(event) -> MaxBotAdapter:
@@ -171,6 +173,17 @@ async def _ensure_user(user_id: int) -> None:
     await crud.add_user(config.database_path, user_id)
 
 
+async def _run_generation(user_id: int, generation_coro) -> bool:
+    generation_id = uuid.uuid4().hex
+    set_state(user_id, GENERATION_RUNNING_STATE, generation_id=generation_id)
+    try:
+        return await generation_coro
+    finally:
+        data = state_data(user_id)
+        if state_name(user_id) == GENERATION_RUNNING_STATE and data.get("generation_id") == generation_id:
+            clear_state(user_id)
+
+
 async def _is_admin(user_id: int) -> bool:
     return user_id in config.admin_ids or await crud.is_admin(config.database_path, user_id)
 
@@ -245,10 +258,14 @@ async def _show_balance(bot: MaxBotAdapter, target_id: int, user_id: int) -> Non
     await bot.send_message(target_id, text, reply_markup=choose_subscription_prompt_kb(), disable_web_page_preview=True)
 
 
-async def _show_effects(bot: MaxBotAdapter, target_id: int, effect_type: str, page: int = 1) -> None:
+async def _show_effects(bot: MaxBotAdapter, target_id: int, effect_type: str, page: int = 1, edit_event=None) -> None:
     effects = await crud.list_effects(config.database_path, active_only=True, effect_type=effect_type)
     if not effects:
-        await bot.send_message(target_id, "⚠️ Эффекты еще не добавлены.", reply_markup=menu_only_kb())
+        text = "⚠️ Эффекты еще не добавлены."
+        kb = menu_only_kb()
+        if edit_event is not None and await answer_callback_message(edit_event, text, kb):
+            return
+        await bot.send_message(target_id, text, reply_markup=kb)
         return
 
     if effect_type == "photo":
@@ -261,6 +278,8 @@ async def _show_effects(bot: MaxBotAdapter, target_id: int, effect_type: str, pa
             f"Длительность: <b>{EFFECT_DURATION_SEC}</b> сек."
         )
         kb = effects_kb(effects, page=page, effect_prefix="effect", nav_prefix="nav")
+    if edit_event is not None and await answer_callback_message(edit_event, text, kb):
+        return
     await bot.send_message(target_id, text, reply_markup=kb)
 
 
@@ -412,7 +431,7 @@ async def _handle_photo_effect_state(event, bot: MaxBotAdapter, user_id: int, ta
             pending_source = await _persist_pending_media(bot, user_id, source)
             await _paywall(bot, target_id, user_id, {"type": "photo_effect", "effect_id": effect_id, "photo_file_id": pending_source, "username": username}, balance)
             return
-        await run_photo_effect_generation(bot, user_id, target_id, effect_id, source, username=username)
+        await _run_generation(user_id, run_photo_effect_generation(bot, user_id, target_id, effect_id, source, username=username))
     else:
         cost = config.effect_cost
         balance = await crud.get_balance(config.database_path, user_id)
@@ -426,8 +445,7 @@ async def _handle_photo_effect_state(event, bot: MaxBotAdapter, user_id: int, ta
                 balance,
             )
             return
-        await run_effect_generation(bot, user_id, target_id, effect_id, source, username=username)
-    clear_state(user_id)
+        await _run_generation(user_id, run_effect_generation(bot, user_id, target_id, effect_id, source, username=username))
 
 
 async def _handle_custom_photo_text(event, bot: MaxBotAdapter, user_id: int, target_id: int, photo_mode: bool) -> None:
@@ -463,8 +481,7 @@ async def _handle_custom_photo_text(event, bot: MaxBotAdapter, user_id: int, tar
             pending_source = await _persist_pending_media(bot, user_id, photo_file_id)
             await _paywall(bot, target_id, user_id, {"type": "photo_custom", "photo_file_id": pending_source, "prompt": prompt, "username": get_username(event)}, balance)
             return
-        await run_photo_custom_generation(bot, user_id, target_id, photo_file_id, prompt, username=get_username(event))
-        clear_state(user_id)
+        await _run_generation(user_id, run_photo_custom_generation(bot, user_id, target_id, photo_file_id, prompt, username=get_username(event)))
         return
 
     await bot.send_message(
@@ -486,8 +503,7 @@ async def _handle_photo_text(event, bot: MaxBotAdapter, user_id: int, target_id:
     if balance < config.photo_custom_cost:
         await _paywall(bot, target_id, user_id, {"type": "photo_text", "prompt": prompt, "username": get_username(event)}, balance)
         return
-    await run_text_image_generation(bot, user_id, target_id, prompt, username=get_username(event))
-    clear_state(user_id)
+    await _run_generation(user_id, run_text_image_generation(bot, user_id, target_id, prompt, username=get_username(event)))
 
 
 async def _handle_duration(event, bot: MaxBotAdapter, user_id: int, target_id: int, duration: int) -> None:
@@ -521,18 +537,20 @@ async def _handle_duration(event, bot: MaxBotAdapter, user_id: int, target_id: i
             balance,
         )
         return
-    await run_custom_generation(
-        bot,
+    await _run_generation(
         user_id,
-        target_id,
-        photo_file_id,
-        prompt,
-        duration,
-        photo_width=data.get("photo_width"),
-        photo_height=data.get("photo_height"),
-        username=get_username(event),
+        run_custom_generation(
+            bot,
+            user_id,
+            target_id,
+            photo_file_id,
+            prompt,
+            duration,
+            photo_width=data.get("photo_width"),
+            photo_height=data.get("photo_height"),
+            username=get_username(event),
+        ),
     )
-    clear_state(user_id)
 
 
 async def _start_concat(bot: MaxBotAdapter, target_id: int, user_id: int) -> None:
@@ -597,7 +615,7 @@ async def _handle_concat2(event, bot: MaxBotAdapter, user_id: int, target_id: in
         if not ok:
             await bot.send_message(target_id, f"📼 Нужен видеофайл до {DOWNLOAD_LIMIT_MB} МБ. Пришлите второе видео.")
             return
-        concat_videos([path1, str(path2)], str(output), config.ffmpeg_path)
+        await asyncio.to_thread(concat_videos, [path1, str(path2)], str(output), config.ffmpeg_path)
         await bot.send_video(target_id, str(output))
         await notify_admin(bot, config.admin_notify_ids, f"✅ Склейка видео выполнена. Пользователь {user_id} (@{get_username(event) or '-'})")
     except Exception as e:
@@ -673,7 +691,7 @@ async def _handle_cut_timecodes(event, bot: MaxBotAdapter, user_id: int, target_
     output = temp_dir / f"cut_{user_id}_{uuid.uuid4().hex}_out.mp4"
     start_sec, end_sec = parsed
     try:
-        remove_fragment(str(input_path), start_sec, end_sec, str(output), config.ffmpeg_path)
+        await asyncio.to_thread(remove_fragment, str(input_path), start_sec, end_sec, str(output), config.ffmpeg_path)
         await bot.send_video(target_id, str(output))
         await notify_admin(bot, config.admin_notify_ids, f"✅ Вырезан фрагмент. Пользователь {user_id} (@{get_username(event) or '-'})")
     except Exception as e:
@@ -908,7 +926,8 @@ async def _start_yoo_payment(bot: MaxBotAdapter, user_id: int, plan_id: str, *, 
         except Exception:
             username_bot = None
         return_url = _bot_link(username_bot)
-        payment = yk.create_payment(
+        payment = await asyncio.to_thread(
+            yk.create_payment,
             amount_rub=plan.price_rub,
             description=f"Подписка {plan.title}",
             return_url=return_url,
@@ -950,7 +969,8 @@ async def _renew_yoo(bot: MaxBotAdapter, user_id: int, plan_id: str, username: s
     if sub and int(sub.get("auto_renew", 0)) == 1 and sub.get("payment_method_id"):
         try:
             yk.configure(config.yookassa_shop_id, config.yookassa_secret_key)
-            payment = yk.create_recurrent_payment(
+            payment = await asyncio.to_thread(
+                yk.create_recurrent_payment,
                 plan.price_rub,
                 f"Подписка {plan.title} - продление",
                 sub["payment_method_id"],
@@ -1227,7 +1247,6 @@ async def handle_bot_started(event) -> None:
 
 @router.message_callback()
 async def handle_callback(event) -> None:
-    await answer_callback(event)
     user_id = get_user_id(event)
     if user_id is None:
         return
@@ -1235,6 +1254,9 @@ async def handle_callback(event) -> None:
     target_id = _target(event)
     bot = _adapter(event)
     payload = callback_payload(event)
+    callback_edits_message = payload.startswith("nav:") or payload.startswith("photo_nav:")
+    if not callback_edits_message:
+        await answer_callback(event)
 
     if payload == "menu:main":
         clear_state(user_id)
@@ -1264,10 +1286,10 @@ async def handle_callback(event) -> None:
         await _start_cut(bot, target_id, user_id)
     elif payload.startswith("nav:"):
         page = int(payload.rsplit(":", 1)[1]) if payload.rsplit(":", 1)[1].isdigit() else 1
-        await _show_effects(bot, target_id, "video", page)
+        await _show_effects(bot, target_id, "video", page, edit_event=event)
     elif payload.startswith("photo_nav:"):
         page = int(payload.rsplit(":", 1)[1]) if payload.rsplit(":", 1)[1].isdigit() else 1
-        await _show_effects(bot, target_id, "photo", page)
+        await _show_effects(bot, target_id, "photo", page, edit_event=event)
     elif payload.startswith("effect:"):
         value = payload.split(":", 1)[1]
         if value.isdigit():
@@ -1386,5 +1408,7 @@ async def handle_message(event) -> None:
         await _handle_cut_video(event, bot, user_id, target_id)
     elif name == "cut_waiting_timecodes":
         await _handle_cut_timecodes(event, bot, user_id, target_id)
+    elif name == GENERATION_RUNNING_STATE:
+        await bot.send_message(target_id, "⏳ Генерация уже запущена. Результат пришлю сюда, меню и команды доступны.")
     else:
         await bot.send_message(target_id, "Выберите режим ниже 👇", reply_markup=main_menu_kb())

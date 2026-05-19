@@ -114,7 +114,7 @@ def load_config() -> Config:
         yookassa_payment_subject=_get_env("YOOKASSA_PAYMENT_SUBJECT", "") or "",
         yookassa_payment_mode=_get_env("YOOKASSA_PAYMENT_MODE", "") or "",
         offer_url=_get_env("OFFER_URL", "https://nnfall.github.io/NeiroFotoVideo/") or "",
-        support_contact=_get_env("PRODUCT_SUPPORT", "@kiperovka") or "@kiperovka",
+        support_contact=_get_env("PRODUCT_SUPPORT", "@NNFall") or "@NNFall",
         admin_ids=admin_ids,
         admin_notify_ids=admin_notify_ids,
         database_path=_get_env("DATABASE_PATH", "database/database.db") or "database/database.db",

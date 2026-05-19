@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from maxapi.enums.parse_mode import ParseMode
+from maxapi.types.updates.message_callback import MessageForCallback
 
 
 def get_bot(event):
@@ -71,6 +72,31 @@ async def answer_callback(event, notification: str | None = None) -> None:
         await event.answer(notification=notification, raise_if_not_exists=False)
     except Exception:
         pass
+
+
+async def answer_callback_message(event, text: str, reply_markup=None, notification: str | None = None) -> bool:
+    callback = getattr(event, "callback", None)
+    if callback is None:
+        return False
+    try:
+        attachments = []
+        if reply_markup is not None:
+            attachments.append(reply_markup.model_dump() if hasattr(reply_markup, "model_dump") else reply_markup)
+        message = MessageForCallback(
+            text=text,
+            attachments=attachments,
+            format=ParseMode.HTML,
+            notify=False,
+        )
+        await get_bot(event).send_callback(
+            callback_id=callback.callback_id,
+            message=message,
+            notification=notification,
+        )
+        return True
+    except Exception:
+        await answer_callback(event, notification=notification)
+        return False
 
 
 async def send_text(bot, target_id: int, text: str, reply_markup=None, disable_web_page_preview: bool | None = None):

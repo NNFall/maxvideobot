@@ -17,10 +17,15 @@ if str(ROOT) not in sys.path:
 class FakeBot:
     def __init__(self) -> None:
         self.messages: list[tuple[int, str | None]] = []
+        self.callbacks: list[dict] = []
 
     async def send_message(self, chat_id: int, text: str | None = None, **kwargs):
         self.messages.append((chat_id, text))
         return SimpleNamespace(message=SimpleNamespace(body=SimpleNamespace(mid="smoke-mid")))
+
+    async def send_callback(self, **kwargs):
+        self.callbacks.append(kwargs)
+        return SimpleNamespace(ok=True)
 
     async def get_me(self):
         return SimpleNamespace(username="smoke_bot")
@@ -47,7 +52,8 @@ async def main() -> None:
         from database import crud
         from database.db import setup
         from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _persist_demo_media, _persist_pending_media, _process_start, router
-        from max_handlers.utils import get_media_source
+        from max_handlers.utils import answer_callback_message, get_media_source
+        from max_keyboards.effects_kb import effects_kb
         from max_keyboards.main_menu import main_menu_kb
 
         await setup(db_path)
@@ -83,6 +89,15 @@ async def main() -> None:
         assert source == "https://example.com/image.jpg"
         assert width == 800
         assert height == 600
+
+        callback_event = SimpleNamespace(callback=SimpleNamespace(callback_id="smoke-callback"), bot=bot)
+        callback_ok = await answer_callback_message(
+            callback_event,
+            "<b>Smoke callback</b>",
+            effects_kb([{"id": 1, "button_name": "Smoke"}], page=1),
+        )
+        assert callback_ok
+        assert bot.callbacks and bot.callbacks[-1]["message"].text == "<b>Smoke callback</b>"
 
         video_event = SimpleNamespace(
             message=SimpleNamespace(
