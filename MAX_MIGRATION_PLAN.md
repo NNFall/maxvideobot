@@ -19,7 +19,7 @@
 - Telegram `aiogram` -> MAX `maxapi`;
 - Telegram keyboards -> MAX inline attachments;
 - Telegram `file_id` -> URL/local media source;
-- Telegram Stars -> разовая ЮKassa-оплата, потому что Stars не существует в MAX.
+- Telegram Stars не переносятся; в MAX оставлены только две подписки ЮKassa.
 
 ## Этапы
 
@@ -91,8 +91,9 @@ FSM реализован в `max_handlers/state.py`.
 - отключение автопродления;
 - фоновое автосписание.
 
-Ограничение:
-- Telegram Stars заменены на разовую оплату через ЮKassa без автопродления.
+Текущая модель:
+- только две подписки ЮKassa с автопродлением: неделя и месяц;
+- разовая покупка отключена.
 
 ### Этап 4. Админка и рассылка — первый проход завершен
 
@@ -136,7 +137,7 @@ FSM реализован в `max_handlers/state.py`.
 - smart-рассылка получила fallback на текст, если демо осталось Telegram `file_id` и не отправляется в MAX.
 - pending actions с фото теперь кешируют входящее MAX-медиа в `MEDIA_TEMP_DIR`, чтобы после оплаты не зависеть от временного URL.
 - expired/canceled YooKassa pending payments чистят связанный pending media cache.
-- pending-payment guard блокирует любую активную pending-оплату пользователя, включая разные способы YooKassa.
+- pending-payment guard блокирует любую активную pending-оплату пользователя.
 - `database/seed_effects.py` переведен на `DATABASE_PATH` из общего конфига.
 - добавлен `.dockerignore` для безопасного Docker-контекста без `.env`, локальных БД/медиа/cache и `telegram_video_bot`.
 - `requirements.txt` закрепляет `maxapi==1.0.0`, под который проверялась текущая реализация.
@@ -159,7 +160,7 @@ FSM реализован в `max_handlers/state.py`.
 
 1. MAX media attachments могут отличаться по форме payload от локальной версии `maxapi`. В `max_handlers/utils.py` сделан универсальный поиск URL, но его нужно подтвердить live-сообщением через `tools/max_payload_probe.py`.
 2. Старые demo `file_id` из Telegram не будут отправляться в MAX. В пользовательских сценариях и smart-рассылке есть fallback без демо, но новые demo нужно добавлять через MAX-админку или миграцией в URL/файлы.
-3. MAX не имеет Telegram Stars. Разовая покупка сохранена через ЮKassa.
+3. MAX не имеет Telegram Stars. Разовые покупки отключены, монетизация идет только через две подписки ЮKassa.
 4. In-memory FSM сбросится при перезапуске процесса. Для production это допустимо на первом этапе, но для долгих сценариев можно вынести state в SQLite.
 5. Webhook нужно проверять на сервере с публичным HTTPS URL и одним активным экземпляром бота.
 

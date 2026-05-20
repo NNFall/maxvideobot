@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from max_keyboards.builder import cb, link, inline_keyboard
+from max_keyboards.builder import cb, inline_keyboard
 
 
 def main_menu_kb():
@@ -12,8 +12,6 @@ def main_menu_kb():
             [cb("✨ Видео-эффекты", "menu:effects")],
             [cb("🎬 Создать видео", "menu:custom")],
             [cb("📼 Инструменты", "menu:tools")],
-            [link("🎤 Создать песню", "https://t.me/your_trackbot?start=pl14")],
-            [link("🖥 Создать презентацию", "https://t.me/slidesgenai_bot?start=pl6")],
             [cb("💳 Баланс / Купить", "menu:balance")],
             [cb("❓ Помощь", "menu:help")],
         ]

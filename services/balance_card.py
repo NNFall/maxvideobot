@@ -32,9 +32,6 @@ async def build_inactive_balance_text(bot, balance: int, include_header: bool = 
         "<b>Подписка с автосписанием</b>\n"
         f"🔥 {week.price_rub} ₽ / {week.title.lower()} — {week.generations} токенов\n"
         f"⭐ {month.price_rub} ₽ / {month.title.lower()} — {month.generations} токенов\n\n"
-        "<b>Разовая покупка через ЮKassa</b>\n"
-        f"⭐ {week.price_rub} ₽ — {week.generations} токенов\n"
-        f"⭐ {month.price_rub} ₽ — {month.generations} токенов\n\n"
         f"Отключить автопродление можно в любой момент в {balance_hint}.\n\n"
         f'Переходя к оплате, вы соглашаетесь с <a href="{cfg.offer_url}">офертой</a>.'
     )

@@ -11,7 +11,6 @@ class Plan:
     id: str
     title: str
     price_rub: int
-    price_stars: int
     generations: int
     days: int
 
@@ -23,7 +22,6 @@ def get_plans() -> dict[str, Plan]:
             id='week',
             title='Неделя',
             price_rub=cfg.sub_week_price_rub,
-            price_stars=cfg.sub_week_price_stars,
             generations=cfg.sub_week_generations,
             days=cfg.sub_week_days,
         ),
@@ -31,7 +29,6 @@ def get_plans() -> dict[str, Plan]:
             id='month',
             title='Месяц',
             price_rub=cfg.sub_month_price_rub,
-            price_stars=cfg.sub_month_price_stars,
             generations=cfg.sub_month_generations,
             days=cfg.sub_month_days,
         ),

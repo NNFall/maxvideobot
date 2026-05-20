@@ -111,9 +111,6 @@ async def _process_start(bot: MaxBotAdapter, target_id: int, user_id: int, paylo
             utm_source = payload
 
     is_new = await crud.add_user(config.database_path, user_id, utm_source, referrer_id)
-    if is_new and config.effect_cost > 0:
-        await crud.update_balance(config.database_path, user_id, config.effect_cost)
-        await bot.send_message(target_id, f"🎁 Бонус новичка: 1 бесплатная генерация ({config.effect_cost} токенов).")
 
     if promo_code:
         credits = await crud.use_promocode(config.database_path, promo_code, user_id)
@@ -279,17 +276,23 @@ async def _show_balance(bot: MaxBotAdapter, target_id: int, user_id: int) -> Non
     sub = await crud.get_subscription(config.database_path, user_id)
     plans = get_plans()
 
-    is_active = sub and sub.get("status") == "active" and int(sub.get("auto_renew", 0)) == 1
+    is_active = False
+    if sub and sub.get("status") in ("active", "inactive"):
+        end = _parse_datetime(sub.get("current_period_end"))
+        is_active = bool(end and datetime.utcnow() < end)
     if is_active:
         plan = get_plan(sub["plan_id"])
         plan_title = f"{plan.price_rub} ₽ / {plan.title} — {plan.generations} токенов" if plan else sub["plan_id"]
+        auto_renew = int(sub.get("auto_renew", 0)) == 1
+        renew_status = "включено" if auto_renew else "отключено"
         await bot.send_message(
             target_id,
             "✅ <b>Подписка активна</b>\n"
             f"Тариф: <b>{plan_title}</b>\n"
             f"Остаток токенов: <b>{balance}</b>\n"
-            f"Обновление токенов: <b>{_format_date(sub['current_period_end'])}</b>",
-            reply_markup=subscription_manage_kb(sub["plan_id"], int(sub["auto_renew"]) == 1),
+            f"Доступно до: <b>{_format_date(sub['current_period_end'])}</b>\n"
+            f"Автопродление: <b>{renew_status}</b>",
+            reply_markup=subscription_manage_kb(sub["plan_id"], auto_renew),
         )
         return
 
@@ -1077,7 +1080,11 @@ async def _handle_payment_callback(payload: str, bot: MaxBotAdapter, user_id: in
         await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=True, username=username)
         return True
     if payload.startswith("sub:choose:once:") or payload.startswith("sub:method:once:"):
-        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=False, username=username)
+        await bot.send_message(
+            user_id,
+            "Разовая покупка отключена. Выберите подписку 👇",
+            reply_markup=choose_subscription_kb(get_plans()),
+        )
         return True
     if payload.startswith("sub:plan:"):
         plan_id = payload.rsplit(":", 1)[1]
@@ -1088,13 +1095,17 @@ async def _handle_payment_callback(payload: str, bot: MaxBotAdapter, user_id: in
             await bot.send_message(user_id, f"Тариф: <b>{plan.generations} токенов</b>.\nВыберите способ оплаты:", reply_markup=methods_kb(plan_id))
         return True
     if payload == "sub:renew_choose":
-        await bot.send_message(user_id, "🔄 <b>Обновить подписку</b>\nВыберите тариф для продления:", reply_markup=choose_subscription_kb(get_plans(), cb_yoo_prefix="sub:renew:yoo", cb_once_prefix="sub:renew:once"))
+        await bot.send_message(user_id, "🔄 <b>Обновить подписку</b>\nВыберите тариф для продления:", reply_markup=choose_subscription_kb(get_plans(), cb_yoo_prefix="sub:renew:yoo"))
         return True
     if payload.startswith("sub:renew:yoo:"):
         await _renew_yoo(bot, user_id, payload.rsplit(":", 1)[1], username=username)
         return True
     if payload.startswith("sub:renew:once:"):
-        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=False, renew_now=True, username=username)
+        await bot.send_message(
+            user_id,
+            "Разовая покупка отключена. Выберите подписку 👇",
+            reply_markup=choose_subscription_kb(get_plans(), cb_yoo_prefix="sub:renew:yoo"),
+        )
         return True
     if payload == "sub:cancel":
         sub = await crud.get_subscription(config.database_path, user_id)

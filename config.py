@@ -65,17 +65,13 @@ class Config:
     custom_cost_per_sec: int
     photo_effect_cost: int
     photo_custom_cost: int
-    stars_rub_rate: float
-    stars_provider_token: str
     system_prompt: str
     ffmpeg_path: str
     replicate_aspect_ratio_mode: str
     sub_week_price_rub: int
-    sub_week_price_stars: int
     sub_week_generations: int
     sub_week_days: int
     sub_month_price_rub: int
-    sub_month_price_stars: int
     sub_month_generations: int
     sub_month_days: int
 
@@ -125,8 +121,6 @@ def load_config() -> Config:
         custom_cost_per_sec=int(_get_env("CUSTOM_COST_PER_SEC", "5") or "5"),
         photo_effect_cost=int(_get_env("PHOTO_EFFECT_COST", "4") or "4"),
         photo_custom_cost=int(_get_env("PHOTO_CUSTOM_COST", "4") or "4"),
-        stars_rub_rate=float(_get_env("STARS_RUB_RATE", "2.0") or "2.0"),
-        stars_provider_token=_get_env("STARS_PROVIDER_TOKEN", "") or "",
         system_prompt=_get_env(
             "SYSTEM_PROMPT",
             "Оживи это фото в видео высокого качества. Сохрани черты лица и внешность персонажа с исходного изображения. "
@@ -136,11 +130,9 @@ def load_config() -> Config:
         ffmpeg_path=_get_env("FFMPEG_PATH", "ffmpeg") or "ffmpeg",
         replicate_aspect_ratio_mode=_get_env("REPLICATE_ASPECT_RATIO_MODE", "match") or "match",
         sub_week_price_rub=int(_get_env("SUB_WEEK_PRICE_RUB", "199") or "199"),
-        sub_week_price_stars=int(_get_env("SUB_WEEK_PRICE_STARS", "199") or "199"),
         sub_week_generations=int(_get_env("SUB_WEEK_GENERATIONS", "60") or "60"),
         sub_week_days=int(_get_env("SUB_WEEK_DAYS", "7") or "7"),
         sub_month_price_rub=int(_get_env("SUB_MONTH_PRICE_RUB", "499") or "499"),
-        sub_month_price_stars=int(_get_env("SUB_MONTH_PRICE_STARS", "499") or "499"),
         sub_month_generations=int(_get_env("SUB_MONTH_GENERATIONS", "100") or "100"),
         sub_month_days=int(_get_env("SUB_MONTH_DAYS", "30") or "30"),
     )

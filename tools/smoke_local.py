@@ -56,11 +56,18 @@ async def main() -> None:
         from max_keyboards.effects_kb import effects_kb
         from max_keyboards.common_kb import help_kb
         from max_keyboards.main_menu import main_menu_kb
+        from max_keyboards.payment_kb import choose_subscription_kb
+        from services.subscriptions import get_plans
 
         await setup(db_path)
 
         kb = main_menu_kb()
         assert kb is not None
+        menu_json = kb.model_dump_json()
+        assert "Создать песню" not in menu_json
+        assert "Создать презентацию" not in menu_json
+        subscription_json = choose_subscription_kb(get_plans()).model_dump_json()
+        assert "разово" not in subscription_json.lower()
         support_kb = help_kb("https://web.max.ru/69942834")
         assert "https://web.max.ru/69942834" in support_kb.model_dump_json()
         assert hasattr(router, "message_created")
@@ -71,8 +78,8 @@ async def main() -> None:
         bot = FakeBot()
         await _process_start(bot, 1001, 1001, "promo_SMOKE", "smoke_user")
         balance = await crud.get_balance(db_path, 1001)
-        assert balance == 17, f"expected starter 10 + promo 7, got {balance}"
-        assert len(bot.messages) >= 3
+        assert balance == 7, f"expected promo 7 without starter bonus, got {balance}"
+        assert len(bot.messages) >= 2
 
         event = SimpleNamespace(
             message=SimpleNamespace(

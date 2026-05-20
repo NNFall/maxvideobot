@@ -17,7 +17,6 @@ def methods_kb(plan_id: str):
     return inline_keyboard(
         [
             [cb("💳 ЮKassa с автопродлением", f"sub:method:yoo:{plan_id}")],
-            [cb("⭐ ЮKassa разово", f"sub:method:once:{plan_id}")],
             [cb("⬅️ Назад", "menu:balance")],
         ]
     )
@@ -26,7 +25,6 @@ def methods_kb(plan_id: str):
 def choose_subscription_kb(
     plans: dict[str, object],
     cb_yoo_prefix: str = "sub:choose:yoo",
-    cb_once_prefix: str = "sub:choose:once",
 ):
     rows = []
     week = plans.get("week")
@@ -35,10 +33,6 @@ def choose_subscription_kb(
         rows.append([cb(f"🔥 {week.price_rub} ₽ / {week.title.lower()} — {week.generations} токенов", f"{cb_yoo_prefix}:{week.id}")])
     if month:
         rows.append([cb(f"⭐ {month.price_rub} ₽ / {month.title.lower()} — {month.generations} токенов", f"{cb_yoo_prefix}:{month.id}")])
-    if week:
-        rows.append([cb(f"⭐ Купить {week.generations} токенов разово", f"{cb_once_prefix}:{week.id}")])
-    if month:
-        rows.append([cb(f"⭐ Купить {month.generations} токенов разово", f"{cb_once_prefix}:{month.id}")])
     rows.append([cb("⬅️ Назад", "menu:balance")])
     return inline_keyboard(rows)
 
