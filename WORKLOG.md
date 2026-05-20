@@ -172,3 +172,13 @@ python tools/migrate_telegram_demos.py --dry-run --limit 3
 ```
 
 Результат: успешно.
+
+### Production-запуск
+
+- Перед импортом создан backup `/root/maxvideobot/data/database.db` в `/root/maxvideobot/data/backups/`.
+- Первый запуск с серверным `BOT_TOKEN` вернул Telegram `getFile` 400 для всех файлов: серверный токен не был владельцем старых `file_id`.
+- Повторный запуск выполнен с токеном исходного Telegram-бота из эталонного проекта, без записи токена в Git.
+- Импортировано активных demo: 48 из 48.
+- По типам: 27 photo, 21 video.
+- Общий размер demo-файлов в `/app/media/demos`: 67 864 872 байт.
+- Контейнер после импорта: `running`, restart count `0`.
