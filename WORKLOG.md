@@ -203,3 +203,32 @@ python tools/migrate_telegram_demos.py --dry-run --limit 3
   - `Пакет с тюльпанами 🌷` / `photo`;
   - `Поцелуй в камеру 😘` / `video`;
   - `Сердечко ❤️` / `video`.
+
+### Production-запуск
+
+- Копия актуальной Telegram-БД временно загружена на сервер как `/root/maxvideobot/data/import_source_telegram_database.db`.
+- Синхронизация выполнена командой `tools/sync_effects_from_telegram_db.py` внутри Docker-контейнера.
+- Перед изменением создан backup `/app/data/backups/database.db.before-effect-sync-20260520-103452`.
+- Результат синхронизации: `updated=85`, `inserted=4`, `errors=0`.
+- MAX-БД после синхронизации:
+  - всего effects: 89;
+  - активных effects: 51;
+  - типы: `photo` 35, `video` 54;
+  - активные типы: `photo` 28, `video` 23;
+  - demo rows: 66;
+  - существующие локальные demo-файлы: 66;
+  - demo по типам: `photo` 32, `video` 34.
+- Дубли теперь совпадают с Telegram-БД:
+  - `Пакет с тюльпанами 🌷` / `photo`: 2 строки, 1 активная;
+  - `Поцелуй в камеру 😘` / `video`: 3 строки, 1 активная;
+  - `Сердечко ❤️` / `video`: 2 строки, 1 активная.
+- Временная копия Telegram-БД удалена с сервера после синхронизации.
+
+### Проверки
+
+```bash
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+python tools/smoke_local.py
+```
+
+Результат: успешно в Docker-контейнере. Контейнер `running`, restart count `0`.
