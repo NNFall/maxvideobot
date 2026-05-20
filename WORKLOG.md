@@ -153,3 +153,22 @@ python tools/smoke_local.py
 ```
 
 Результат: успешно.
+
+## 2026-05-20, перенос demo из Telegram file_id
+
+### Сделано
+
+- Добавлен `tools/migrate_telegram_demos.py`.
+- Скрипт берет исходные Telegram `demo_file_id` из `database.seed_effects.EFFECTS`, скачивает файлы через Telegram Bot API в `MEDIA_DEMO_DIR` и обновляет MAX-БД на локальные пути.
+- Скрипт безопасен для повторного запуска: существующие локальные/URL demo пропускаются без `--overwrite`.
+- В логах скрипта токен Telegram маскируется.
+
+### Проверки
+
+```bash
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+python tools/smoke_local.py
+python tools/migrate_telegram_demos.py --dry-run --limit 3
+```
+
+Результат: успешно.

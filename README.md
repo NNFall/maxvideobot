@@ -87,6 +87,14 @@ python -m compileall main.py config.py max_handlers max_keyboards services datab
 python tools/smoke_local.py
 ```
 
+Перенос старых Telegram demo `file_id` в локальные MAX-файлы:
+
+```bash
+python tools/migrate_telegram_demos.py
+```
+
+Перед запуском задайте `BOT_TOKEN` или `TELEGRAM_BOT_TOKEN` старого Telegram-бота. Скрипт скачивает demo в `MEDIA_DEMO_DIR` и обновляет `effects.demo_file_id` на локальный путь.
+
 Probe для live-проверки реального MAX payload:
 
 ```bash
