@@ -182,3 +182,24 @@ python tools/migrate_telegram_demos.py --dry-run --limit 3
 - По типам: 27 photo, 21 video.
 - Общий размер demo-файлов в `/app/media/demos`: 67 864 872 байт.
 - Контейнер после импорта: `running`, restart count `0`.
+
+## 2026-05-20, синхронизация effects из актуальной Telegram-БД
+
+### Сделано
+
+- Найдена актуальная копия Telegram-БД: `telegram_video_bot/database/database.db`, размер 7 536 640 байт.
+- Добавлен `tools/sync_effects_from_telegram_db.py`.
+- Скрипт синхронизирует `effects` из SQLite-БД Telegram-бота в MAX-БД:
+  - обновляет `button_name`, `prompt`, `demo_file_id`, `demo_type`, `type`, `is_active`, `sort_order`, `created_at`;
+  - добавляет недостающие дубли по `button_name/type`;
+  - скачивает Telegram `file_id` в `MEDIA_DEMO_DIR`;
+  - создает backup target DB перед изменением.
+
+### Предварительное сравнение
+
+- Telegram-БД: 89 effects, активных 51 (`photo`: 28, `video`: 23), с demo 66.
+- MAX-БД до синхронизации: 85 effects, активных 48 (`photo`: 27, `video`: 21), с demo 48.
+- В Telegram-БД 3 группы дублей, которых MAX-БД не отражала полностью:
+  - `Пакет с тюльпанами 🌷` / `photo`;
+  - `Поцелуй в камеру 😘` / `video`;
+  - `Сердечко ❤️` / `video`.

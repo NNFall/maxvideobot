@@ -95,6 +95,14 @@ python tools/migrate_telegram_demos.py
 
 Перед запуском задайте `BOT_TOKEN` или `TELEGRAM_BOT_TOKEN` старого Telegram-бота. Скрипт скачивает demo в `MEDIA_DEMO_DIR` и обновляет `effects.demo_file_id` на локальный путь.
 
+Синхронизация `effects` из актуальной SQLite-БД Telegram-бота:
+
+```bash
+python tools/sync_effects_from_telegram_db.py --source-db /path/to/telegram/database.db
+```
+
+Скрипт обновляет prompt/status/sort/demo, добавляет недостающие дубли и перед изменением MAX-БД создает backup.
+
 Probe для live-проверки реального MAX payload:
 
 ```bash
