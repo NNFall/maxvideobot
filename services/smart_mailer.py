@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from html import escape
 
 from config import load_config
 from database import crud
@@ -14,6 +15,10 @@ SEND_RATE_PER_SEC = 25
 PREVIEW_LEAD_SEC = 30 * 60
 CYCLE_SLEEP_SEC = 12 * 60 * 60
 PROGRESS_TICK_SEC = 60
+
+
+def _html(value) -> str:
+    return escape(str(value), quote=False)
 
 
 def _promo_kb(effect_id: int, effect_type: str):
@@ -35,7 +40,7 @@ def _pick_next_effect(effects: list[dict], last_effect_id: int | None) -> dict |
 
 async def _send_promo(bot, user_id: int, effect: dict) -> str:
     effect_type = effect.get("type") or "video"
-    text = f"Попробуйте этот эффект! 👇\n<b>{effect['button_name']}</b>"
+    text = f"Попробуйте этот эффект! 👇\n<b>{_html(effect['button_name'])}</b>"
     demo = effect.get("demo_file_id")
     demo_type = effect.get("demo_type")
     kb = _promo_kb(int(effect["id"]), effect_type)
@@ -71,7 +76,7 @@ async def _send_preview(bot, admin_ids: list[int], effect: dict) -> None:
             await bot.send_message(
                 admin_id,
                 "⚠️ <b>Внимание!</b> Через 30 минут начнется автоматическая рассылка.\n"
-                f"Эффект: <b>{effect['button_name']}</b>",
+                f"Эффект: <b>{_html(effect['button_name'])}</b>",
             )
             await _send_promo(bot, admin_id, effect)
         except Exception:
@@ -148,7 +153,7 @@ async def smart_mailing_loop(bot) -> None:
                     msg = await bot.send_message(
                         admin_id,
                         "🚀 <b>Рассылка началась!</b>\n"
-                        f"Эффект: <b>{effect['button_name']}</b>\n"
+                        f"Эффект: <b>{_html(effect['button_name'])}</b>\n"
                         f"Целевая аудитория: <b>{total}</b> чел.",
                     )
                     mid = getattr(getattr(msg, "message", None), "body", None)

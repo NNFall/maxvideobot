@@ -5,6 +5,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 from maxapi import Router
@@ -146,6 +147,43 @@ def _format_date(value: str) -> str:
         return datetime.fromisoformat(value).strftime("%Y-%m-%d")
     except Exception:
         return value
+
+
+def _html(value) -> str:
+    return escape(str(value), quote=False)
+
+
+def _format_payment_admin_message(kind: str, user_id: int, username: str | None, plan_id: str, auto_renew: bool) -> str:
+    plan = get_plan(plan_id)
+    lines = [
+        f"💰 <b>{_html(kind)} (ЮKassa)</b>",
+        f"Пользователь: <code>{user_id}</code> (@{_html(username or '-')})",
+    ]
+    if plan:
+        lines.extend(
+            [
+                f"Тариф: <b>{_html(plan.title)}</b> (<code>{_html(plan.id)}</code>)",
+                f"Сумма: <b>{plan.price_rub}</b> ₽",
+                f"Токены: <b>{plan.generations}</b>",
+            ]
+        )
+    else:
+        lines.append(f"Тариф: <code>{_html(plan_id)}</code>")
+    lines.append(f"Автопродление: <b>{'да' if auto_renew else 'нет'}</b>")
+    return "\n".join(lines)
+
+
+def _format_cancel_admin_message(user_id: int, username: str | None, sub: dict, end_date: str) -> str:
+    plan_id = sub.get("plan_id") or "-"
+    plan = get_plan(plan_id)
+    plan_text = f"{plan.title} ({plan.id})" if plan else plan_id
+    return (
+        "❌ <b>Отключил подписку</b>\n"
+        f"Пользователь: <code>{user_id}</code> (@{_html(username or '-')})\n"
+        f"Тариф: <b>{_html(plan_text)}</b>\n"
+        f"Статус до отмены: <code>{_html(sub.get('status') or '-')}</code>\n"
+        f"Доступно до: <b>{_html(end_date)}</b>"
+    )
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -847,6 +885,7 @@ async def _poll_yookassa_payment(bot: MaxBotAdapter, tx_id: int, user_id: int, u
             if status == "succeeded":
                 await crud.update_transaction_status(config.database_path, tx_id, "paid")
                 payload = _parse_tx_payload(tx)
+                notify_username = username or payload.get("username")
                 plan_id = payload.get("plan_id")
                 if plan_id:
                     payment_method_id = None
@@ -860,7 +899,11 @@ async def _poll_yookassa_payment(bot: MaxBotAdapter, tx_id: int, user_id: int, u
                     await _apply_subscription(user_id, plan_id, provider, auto_renew, payment_method_id)
                     await bot.send_message(user_id, "✅ Подписка активирована. Токены начислены.", reply_markup=payment_success_kb())
                     kind = "Продлил подписку" if payload.get("renew_now") else "Успешная оплата"
-                    await notify_admin(bot, config.admin_notify_ids, f"💰 {kind} (ЮKassa). Пользователь {user_id} (@{username or '-'}) , план {plan_id}")
+                    await notify_admin(
+                        bot,
+                        config.admin_notify_ids,
+                        _format_payment_admin_message(kind, user_id, notify_username, plan_id, bool(auto_renew)),
+                    )
                 else:
                     await bot.send_message(user_id, "✅ Оплата прошла успешно.", reply_markup=payment_success_kb())
                 await _handle_pending_action(tx_id, user_id, bot)
@@ -945,7 +988,15 @@ async def _start_yoo_payment(bot: MaxBotAdapter, user_id: int, plan_id: str, *, 
             provider=provider,
             status="pending",
             provider_payment_id=payment.id,
-            payload=json.dumps({"plan_id": plan.id, "days": plan.days, "auto_renew": auto_renew, "renew_now": renew_now}),
+            payload=json.dumps(
+                {
+                    "plan_id": plan.id,
+                    "days": plan.days,
+                    "auto_renew": auto_renew,
+                    "renew_now": renew_now,
+                    "username": username,
+                }
+            ),
         )
 
         pending = _get_pending_action(state_data(user_id))
@@ -982,7 +1033,16 @@ async def _renew_yoo(bot: MaxBotAdapter, user_id: int, plan_id: str, username: s
             await bot.send_message(user_id, "Не удалось выполнить списание. Попробуйте позже.")
             if "payment_method_id" in str(e):
                 await crud.cancel_subscription(config.database_path, user_id)
-            await notify_admin(bot, config.admin_notify_ids, f"❌ Продление не удалось (ошибка списания): {e}")
+            await notify_admin(
+                bot,
+                config.admin_notify_ids,
+                (
+                    "❌ <b>Продление не удалось</b>\n"
+                    f"Пользователь: <code>{user_id}</code> (@{_html(username or '-')})\n"
+                    f"Тариф: <b>{_html(plan.title)}</b> (<code>{_html(plan.id)}</code>)\n"
+                    f"Причина: <code>{_html(e)}</code>"
+                ),
+            )
             return
         tx_id = await crud.create_transaction(
             config.database_path,
@@ -993,7 +1053,15 @@ async def _renew_yoo(bot: MaxBotAdapter, user_id: int, plan_id: str, username: s
             provider="yookassa",
             status="pending",
             provider_payment_id=payment.id,
-            payload=json.dumps({"plan_id": plan.id, "days": plan.days, "auto_renew": True, "renew_now": True}),
+            payload=json.dumps(
+                {
+                    "plan_id": plan.id,
+                    "days": plan.days,
+                    "auto_renew": True,
+                    "renew_now": True,
+                    "username": username,
+                }
+            ),
         )
         _pending_yoo_tasks[tx_id] = asyncio.create_task(_poll_yookassa_payment(bot, tx_id, user_id, username=username))
         await bot.send_message(user_id, "🔄 Запрос на продление отправлен. Ожидаем подтверждение оплаты.")
@@ -1001,15 +1069,15 @@ async def _renew_yoo(bot: MaxBotAdapter, user_id: int, plan_id: str, username: s
     await _start_yoo_payment(bot, user_id, plan_id, auto_renew=True, renew_now=True, username=username)
 
 
-async def _handle_payment_callback(payload: str, bot: MaxBotAdapter, user_id: int) -> bool:
+async def _handle_payment_callback(payload: str, bot: MaxBotAdapter, user_id: int, username: str | None = None) -> bool:
     if payload == "sub:choose":
         await bot.send_message(user_id, "Выберите подписку 👇", reply_markup=choose_subscription_kb(get_plans()))
         return True
     if payload.startswith("sub:choose:yoo:") or payload.startswith("sub:method:yoo:"):
-        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=True)
+        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=True, username=username)
         return True
     if payload.startswith("sub:choose:once:") or payload.startswith("sub:method:once:"):
-        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=False)
+        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=False, username=username)
         return True
     if payload.startswith("sub:plan:"):
         plan_id = payload.rsplit(":", 1)[1]
@@ -1023,10 +1091,10 @@ async def _handle_payment_callback(payload: str, bot: MaxBotAdapter, user_id: in
         await bot.send_message(user_id, "🔄 <b>Обновить подписку</b>\nВыберите тариф для продления:", reply_markup=choose_subscription_kb(get_plans(), cb_yoo_prefix="sub:renew:yoo", cb_once_prefix="sub:renew:once"))
         return True
     if payload.startswith("sub:renew:yoo:"):
-        await _renew_yoo(bot, user_id, payload.rsplit(":", 1)[1])
+        await _renew_yoo(bot, user_id, payload.rsplit(":", 1)[1], username=username)
         return True
     if payload.startswith("sub:renew:once:"):
-        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=False, renew_now=True)
+        await _start_yoo_payment(bot, user_id, payload.rsplit(":", 1)[1], auto_renew=False, renew_now=True, username=username)
         return True
     if payload == "sub:cancel":
         sub = await crud.get_subscription(config.database_path, user_id)
@@ -1037,7 +1105,7 @@ async def _handle_payment_callback(payload: str, bot: MaxBotAdapter, user_id: in
         await crud.cancel_subscription(config.database_path, user_id)
         await bot.send_message(user_id, "✅ Подписка отменена. Автопродление отключено.")
         await bot.send_message(user_id, f"Текущие токены доступны до <b>{end_date}</b>.")
-        await notify_admin(bot, config.admin_notify_ids, f"❌ Отключил подписку. Пользователь {user_id}")
+        await notify_admin(bot, config.admin_notify_ids, _format_cancel_admin_message(user_id, username, sub, end_date))
         return True
     return False
 
@@ -1335,7 +1403,7 @@ async def handle_callback(event) -> None:
         effect_id = int(payload.rsplit(":", 1)[1])
         effect = await crud.get_effect(config.database_path, effect_id)
         await bot.send_message(target_id, f"<b>{effect['button_name']}</b>\n<code>{effect['prompt']}</code>" if effect else "Эффект не найден.")
-    elif await _handle_payment_callback(payload, bot, user_id):
+    elif await _handle_payment_callback(payload, bot, user_id, username=get_username(event)):
         return
 
 

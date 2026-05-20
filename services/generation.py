@@ -5,6 +5,7 @@ import re
 import logging
 import uuid
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -115,11 +116,41 @@ def _build_admin_error_message(
 ) -> str:
     return (
         '\u274c <b>\u041e\u0448\u0438\u0431\u043a\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438</b>\\n'
-        f'\u041f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440: <code>{error_source}</code>\\n'
+        f'\u041f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440: <code>{_html(error_source)}</code>\\n'
         f'\u0422\u0438\u043f: {_error_kind(exc)}\\n'
-        f'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c: <code>{user_id}</code> (@{username or '-'})\\n'
-        f'\u0414\u0435\u0442\u0430\u043b\u0438: <code>{shorten(str(exc), 350)}</code>'
+        f'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c: <code>{user_id}</code> (@{_html(username or '-')})\\n'
+        f'\u0414\u0435\u0442\u0430\u043b\u0438: <code>{_html(shorten(str(exc), 350))}</code>'
     )
+
+
+def _html(value: Any) -> str:
+    return escape(str(value), quote=False)
+
+
+def _build_admin_success_message(
+    kind: str,
+    user_id: int,
+    username: str | None,
+    *,
+    effect: dict | None = None,
+    prompt: str | None = None,
+    cost: int | None = None,
+    duration: int | None = None,
+) -> str:
+    lines = [
+        f'✅ <b>Успешная генерация: {_html(kind)}</b>',
+        f'Пользователь: <code>{user_id}</code> (@{_html(username or "-")})',
+    ]
+    if effect:
+        lines.append(f'Шаблон: <b>{_html(effect.get("button_name") or "-")}</b>')
+        lines.append(f'Effect ID: <code>{_html(effect.get("id") or "-")}</code>')
+    if prompt:
+        lines.append(f'Запрос: <code>{_html(shorten(prompt, 500))}</code>')
+    if duration is not None:
+        lines.append(f'Длительность: <b>{duration}</b> сек.')
+    if cost is not None:
+        lines.append(f'Списано: <b>{cost}</b> токенов')
+    return '\n'.join(lines)
 
 
 async def _with_retries(
@@ -221,13 +252,21 @@ async def run_effect_generation(
         await bot.send_video(chat_id, url)
         await bot.send_message(
             chat_id,
-            f'✅ Видео создано\nЭффект: <b>{effect["button_name"]}</b>',
+            f'✅ Видео создано\nЭффект: <b>{_html(effect["button_name"])}</b>',
             reply_markup=effect_done_kb(effect_id),
         )
         await notify_admin(
             bot,
             config.admin_notify_ids,
-            f'✅ Успешная генерация (Эффект). Пользователь {user_id} (@{username or "-"}) , эффект {effect_id}'
+            _build_admin_success_message(
+                'Видео-эффект',
+                user_id,
+                username,
+                effect=effect,
+                prompt=effect.get('prompt'),
+                cost=config.effect_cost,
+                duration=6,
+            ),
         )
         return True
     except Exception as e:
@@ -448,13 +487,20 @@ async def run_photo_effect_generation(
         await _send_image_group(bot, chat_id, urls)
         await bot.send_message(
             chat_id,
-            f'✅ Фото создано\nЭффект: <b>{effect["button_name"]}</b>',
+            f'✅ Фото создано\nЭффект: <b>{_html(effect["button_name"])}</b>',
             reply_markup=photo_effect_done_kb(effect_id),
         )
         await notify_admin(
             bot,
             config.admin_notify_ids,
-            f'✅ Успешная генерация (Фото-эффект). Пользователь {user_id} (@{username or "-"}) , эффект {effect_id}'
+            _build_admin_success_message(
+                'Фото-эффект',
+                user_id,
+                username,
+                effect=effect,
+                prompt=effect.get('prompt'),
+                cost=config.photo_effect_cost,
+            ),
         )
         return True
     except Exception as e:
@@ -609,13 +655,20 @@ async def run_custom_generation(
         await bot.send_video(chat_id, url)
         await bot.send_message(
             chat_id,
-            f'✅ Видео создано\nЗапрос: <i>{shorten(prompt, 200)}</i>',
+            f'✅ Видео создано\nЗапрос: <i>{_html(shorten(prompt, 200))}</i>',
             reply_markup=custom_done_kb(),
         )
         await notify_admin(
             bot,
             config.admin_notify_ids,
-            f'✅ Успешная генерация (Свой промпт). Пользователь {user_id} (@{username or "-"})'
+            _build_admin_success_message(
+                'Свое видео',
+                user_id,
+                username,
+                prompt=prompt,
+                cost=cost,
+                duration=duration,
+            ),
         )
         return True
     except Exception as e:
@@ -711,13 +764,19 @@ async def run_photo_custom_generation(
         await _send_image_group(bot, chat_id, urls)
         await bot.send_message(
             chat_id,
-            f'✅ Фото создано\nЗапрос: <i>{shorten(prompt, 200)}</i>',
+            f'✅ Фото создано\nЗапрос: <i>{_html(shorten(prompt, 200))}</i>',
             reply_markup=photo_custom_done_kb(),
         )
         await notify_admin(
             bot,
             config.admin_notify_ids,
-            f'✅ Успешная генерация (ИИ-Фотошоп). Пользователь {user_id} (@{username or "-"})'
+            _build_admin_success_message(
+                'ИИ-Фотошоп',
+                user_id,
+                username,
+                prompt=prompt,
+                cost=config.photo_custom_cost,
+            ),
         )
         return True
     except Exception as e:
@@ -809,13 +868,19 @@ async def run_text_image_generation(
         await _send_image_group(bot, chat_id, urls)
         await bot.send_message(
             chat_id,
-            f'✅ Изображение создано\nЗапрос: <i>{shorten(prompt, 200)}</i>',
+            f'✅ Изображение создано\nЗапрос: <i>{_html(shorten(prompt, 200))}</i>',
             reply_markup=photo_text_done_kb(),
         )
         await notify_admin(
             bot,
             config.admin_notify_ids,
-            f'✅ Успешная генерация (Текст→Фото). Пользователь {user_id} (@{username or "-"})'
+            _build_admin_success_message(
+                'Текст в изображение',
+                user_id,
+                username,
+                prompt=prompt,
+                cost=config.photo_custom_cost,
+            ),
         )
         return True
     except Exception as e:

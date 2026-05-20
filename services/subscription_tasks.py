@@ -4,14 +4,37 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
+from html import escape
 
 from config import load_config
 from database import crud
+from services.logging_utils import shorten
 from services import yookassa as yk
 from services.notify import notify_admin
 from services.subscriptions import calc_period, get_plan
 
 logger = logging.getLogger(__name__)
+
+
+def _html(value) -> str:
+    return escape(str(value), quote=False)
+
+
+def _autocharge_admin_message(title: str, sub: dict, plan, *, status: str | None = None, error: Exception | None = None, retry_at: str | None = None) -> str:
+    lines = [
+        f"{title}",
+        f"Пользователь: <code>{sub['user_id']}</code>",
+        f"Тариф: <b>{_html(plan.title)}</b> (<code>{_html(plan.id)}</code>)",
+        f"Сумма: <b>{plan.price_rub}</b> ₽",
+        f"Токены: <b>{plan.generations}</b>",
+    ]
+    if status:
+        lines.append(f"Статус: <code>{_html(status)}</code>")
+    if error:
+        lines.append(f"Причина: <code>{_html(shorten(str(error), 500))}</code>")
+    if retry_at:
+        lines.append(f"Следующая попытка: <b>{_html(retry_at)}</b>")
+    return "\n".join(lines)
 
 
 async def _apply_subscription(user_id: int, plan_id: str, provider: str, auto_renew: int, payment_method_id: str | None) -> None:
@@ -122,8 +145,13 @@ async def process_due_subscriptions(bot) -> None:
             await notify_admin(
                 bot,
                 cfg.admin_notify_ids,
-                f"❌ Автосписание: пользователь {sub['user_id']}, статус ошибка. Причина: {e}"
-                + (f"\nСледующая попытка: {retry_at}" if retry_at else ""),
+                _autocharge_admin_message(
+                    "❌ <b>Автосписание: ошибка</b>",
+                    sub,
+                    plan,
+                    error=e,
+                    retry_at=retry_at,
+                ),
             )
             continue
 
@@ -142,11 +170,25 @@ async def process_due_subscriptions(bot) -> None:
                 payload=json.dumps({"plan_id": plan.id, "auto_renew": True}),
             )
             await _apply_subscription(sub["user_id"], plan.id, "yookassa", 1, sub["payment_method_id"])
-            await notify_admin(bot, cfg.admin_notify_ids, f"✅ Автосписание: пользователь {sub['user_id']}, статус успех, тариф {plan.id}")
+            await notify_admin(
+                bot,
+                cfg.admin_notify_ids,
+                _autocharge_admin_message("✅ <b>Автосписание: успех</b>", sub, plan, status="succeeded"),
+            )
         else:
             retry_at = _calc_retry_time(sub.get("current_period_end"), days=1)
             await crud.set_subscription_period_end(cfg.database_path, sub["user_id"], retry_at)
-            await notify_admin(bot, cfg.admin_notify_ids, f"❌ Автосписание: пользователь {sub['user_id']}, статус {status}, тариф {plan.id}")
+            await notify_admin(
+                bot,
+                cfg.admin_notify_ids,
+                _autocharge_admin_message(
+                    "❌ <b>Автосписание: не выполнено</b>",
+                    sub,
+                    plan,
+                    status=status,
+                    retry_at=retry_at,
+                ),
+            )
 
 
 async def subscription_watcher(bot, interval_sec: int = 60) -> None:
