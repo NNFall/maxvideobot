@@ -54,12 +54,15 @@ async def main() -> None:
         from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _persist_demo_media, _persist_pending_media, _process_start, router
         from max_handlers.utils import answer_callback_message, get_media_source
         from max_keyboards.effects_kb import effects_kb
+        from max_keyboards.common_kb import help_kb
         from max_keyboards.main_menu import main_menu_kb
 
         await setup(db_path)
 
         kb = main_menu_kb()
         assert kb is not None
+        support_kb = help_kb("https://web.max.ru/69942834")
+        assert "https://web.max.ru/69942834" in support_kb.model_dump_json()
         assert hasattr(router, "message_created")
         assert hasattr(router, "message_callback")
         assert hasattr(router, "bot_started")

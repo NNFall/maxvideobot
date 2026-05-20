@@ -136,3 +136,20 @@ python tools/smoke_local.py
 
 - Поведение редактирования сообщения через callback нужно подтвердить live в MAX: библиотека поддерживает такой ответ, но клиент может все равно показывать новое сообщение.
 - Live AI API и ЮKassa после исправления не вызывались локально, чтобы не тратить платные лимиты без необходимости.
+
+## 2026-05-20, правка ссылок
+
+### Сделано
+
+- `OFFER_URL` по умолчанию заменен на `https://dimonk95.github.io/tarobotrustore/`.
+- `PRODUCT_SUPPORT` по умолчанию заменен на `https://web.max.ru/69942834`.
+- В меню помощи добавлена link-кнопка `🛟 Техподдержка`; кнопка `🏠 Главное меню` оставлена отдельной строкой.
+
+### Проверки
+
+```bash
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+python tools/smoke_local.py
+```
+
+Результат: успешно.

@@ -59,6 +59,8 @@ Telegram Stars в MAX напрямую недоступны. Для сохран
 - `DATABASE_PATH`
 - `MEDIA_TEMP_DIR`
 - `MEDIA_DEMO_DIR`
+- `OFFER_URL`
+- `PRODUCT_SUPPORT`
 - `YOOKASSA_*`
 - `KIE_*`
 - `REPLICATE_*`

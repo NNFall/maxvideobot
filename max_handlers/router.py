@@ -24,7 +24,7 @@ from max_handlers.utils import (
     get_username,
     parse_command,
 )
-from max_keyboards.common_kb import menu_only_kb
+from max_keyboards.common_kb import help_kb, menu_only_kb
 from max_keyboards.custom_kb import duration_kb
 from max_keyboards.effects_kb import effects_kb
 from max_keyboards.main_menu import main_menu_kb
@@ -205,15 +205,16 @@ async def _send_main(bot: MaxBotAdapter, target_id: int, text: str | None = None
 
 
 async def _show_help(bot: MaxBotAdapter, target_id: int) -> None:
+    support_line = "" if config.support_contact.startswith(("http://", "https://")) else f"\n\nПоддержка: {config.support_contact}"
     await bot.send_message(
         target_id,
         "❓ <b>Помощь</b>\n"
         "1) Выберите идею или свой промпт\n"
         "2) Отправьте фото и получите результат\n"
         "3) Для склейки пришлите два видео подряд\n"
-        "4) Для вырезания фрагмента отправьте видео и таймкоды\n\n"
-        f"Если что-то не работает, напишите в поддержку: {config.support_contact}",
-        reply_markup=menu_only_kb(),
+        "4) Для вырезания фрагмента отправьте видео и таймкоды"
+        f"{support_line}",
+        reply_markup=help_kb(config.support_contact),
     )
 
 
