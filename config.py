@@ -109,7 +109,7 @@ def load_config() -> Config:
         yookassa_item_name=_get_env("YOOKASSA_ITEM_NAME", "Подписка на токены") or "Подписка на токены",
         yookassa_payment_subject=_get_env("YOOKASSA_PAYMENT_SUBJECT", "") or "",
         yookassa_payment_mode=_get_env("YOOKASSA_PAYMENT_MODE", "") or "",
-        offer_url=_get_env("OFFER_URL", "https://dimonk95.github.io/tarobotrustore/") or "",
+        offer_url=_get_env("OFFER_URL", "https://dimonk95.github.io/photo-video-ai-max/") or "",
         support_contact=_get_env("PRODUCT_SUPPORT", "https://web.max.ru/69942834") or "https://web.max.ru/69942834",
         admin_ids=admin_ids,
         admin_notify_ids=admin_notify_ids,
