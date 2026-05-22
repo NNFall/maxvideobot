@@ -21,6 +21,18 @@ def _html(value) -> str:
     return escape(str(value), quote=False)
 
 
+def _effect_type_title(effect: dict) -> str:
+    return "Фото" if effect.get("type") == "photo" else "Видео"
+
+
+def _effect_admin_lines(effect: dict) -> str:
+    return (
+        f"Эффект: <b>{_html(effect['button_name'])}</b>\n"
+        f"Тип: <b>{_effect_type_title(effect)}</b>\n"
+        f"Effect ID: <code>{_html(effect.get('id') or '-')}</code>"
+    )
+
+
 def _promo_kb(effect_id: int, effect_type: str):
     prefix = "photo_effect" if effect_type == "photo" else "effect"
     text = "📸 Сделать фото" if effect_type == "photo" else "🎬 Сделать видео"
@@ -76,7 +88,7 @@ async def _send_preview(bot, admin_ids: list[int], effect: dict) -> None:
             await bot.send_message(
                 admin_id,
                 "⚠️ <b>Внимание!</b> Через 30 минут начнется автоматическая рассылка.\n"
-                f"Эффект: <b>{_html(effect['button_name'])}</b>",
+                f"{_effect_admin_lines(effect)}",
             )
             await _send_promo(bot, admin_id, effect)
         except Exception:
@@ -153,7 +165,7 @@ async def smart_mailing_loop(bot) -> None:
                     msg = await bot.send_message(
                         admin_id,
                         "🚀 <b>Рассылка началась!</b>\n"
-                        f"Эффект: <b>{_html(effect['button_name'])}</b>\n"
+                        f"{_effect_admin_lines(effect)}\n"
                         f"Целевая аудитория: <b>{total}</b> чел.",
                     )
                     mid = getattr(getattr(msg, "message", None), "body", None)

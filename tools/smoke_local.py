@@ -46,12 +46,12 @@ async def main() -> None:
         os.environ["MEDIA_TEMP_DIR"] = media_dir
         os.environ["MEDIA_DEMO_DIR"] = demo_dir
         os.environ.setdefault("MAX_BOT_TOKEN", "smoke-token")
-        os.environ.setdefault("ADMIN_IDS", "")
-        os.environ.setdefault("ADMIN_NOTIFY_IDS", "")
+        os.environ["ADMIN_IDS"] = "1001"
+        os.environ["ADMIN_NOTIFY_IDS"] = "1001"
 
         from database import crud
         from database.db import setup
-        from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _persist_demo_media, _persist_pending_media, _process_start, router
+        from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _handle_admin_command, _persist_demo_media, _persist_pending_media, _process_start, router
         from max_handlers.utils import answer_callback_message, get_media_source
         from max_keyboards.effects_kb import effects_kb
         from max_keyboards.common_kb import help_kb
@@ -162,6 +162,23 @@ async def main() -> None:
         demo = await _persist_demo_media(bot, 1001, "https://example.com/demo.jpg", "photo")
         assert Path(demo).exists()
         assert Path(demo).parent == Path(demo_dir)
+
+        effect_id = await crud.add_effect(
+            db_path,
+            "Smoke effect",
+            "Generate a smoke test image",
+            demo_file_id=demo,
+            demo_type="photo",
+            effect_type="photo",
+        )
+        await _handle_admin_command(SimpleNamespace(), bot, 1001, 1001, "get_prompt", [str(effect_id)])
+        assert "<pre>Generate a smoke test image</pre>" in (bot.messages[-1][1] or "")
+        await _handle_admin_command(SimpleNamespace(), bot, 1001, 1001, "botstats", [])
+        assert "📊 <b>Общая статистика бота</b>" in (bot.messages[-1][1] or "")
+        await _handle_admin_command(SimpleNamespace(), bot, 1001, 1001, "adtag", ["smoke"])
+        assert "Метка: <code>smoke</code>" in (bot.messages[-1][1] or "")
+        await _handle_admin_command(SimpleNamespace(), bot, 1001, 1001, "session_del", [str(effect_id)])
+        assert bot.messages[-1][1] == "Эффект удален (деактивирован)."
 
         print("SMOKE OK")
         print(f"db={db_path}")

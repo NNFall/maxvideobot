@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 import uuid
 from datetime import datetime
 from html import escape
@@ -183,6 +184,17 @@ def _format_cancel_admin_message(user_id: int, username: str | None, sub: dict, 
     )
 
 
+def _format_tool_admin_message(title: str, user_id: int, username: str | None, *, ok: bool = True, details: dict[str, str | int] | None = None) -> str:
+    icon = "✅" if ok else "❌"
+    lines = [
+        f"{icon} <b>{_html(title)}</b>",
+        f"Пользователь: <code>{user_id}</code> (@{_html(username or '-')})",
+    ]
+    for key, value in (details or {}).items():
+        lines.append(f"{_html(key)}: <code>{_html(value)}</code>")
+    return "\n".join(lines)
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -225,6 +237,52 @@ async def _is_admin(user_id: int) -> bool:
 
 def _is_owner(user_id: int) -> bool:
     return user_id in config.admin_ids
+
+
+def _stars_rub_rate() -> float:
+    return float(getattr(config, "stars_rub_rate", 2.0))
+
+
+def _rub_equivalent(totals: list[tuple[str, int]]) -> float:
+    total_rub = 0.0
+    for currency, amount in totals:
+        if currency == "RUB":
+            total_rub += amount
+        elif currency == "XTR":
+            total_rub += amount * _stars_rub_rate()
+    return total_rub
+
+
+def _effect_type_title(effect: dict) -> str:
+    return "Фото" if effect.get("type") == "photo" else "Видео"
+
+
+def _effect_button_label(effect: dict) -> str:
+    prefix = "📸" if effect.get("type") == "photo" else "🎬"
+    return f"{prefix} {effect.get('button_name') or effect.get('id')}"
+
+
+def _format_effect_prompt(effect: dict) -> str:
+    return (
+        f"Эффект: <b>{_html(effect.get('button_name') or '-')}</b>\n"
+        f"Тип: <b>{_effect_type_title(effect)}</b>\n"
+        f"Промпт:\n<pre>{_html(effect.get('prompt') or '')}</pre>"
+    )
+
+
+def _effect_keyboard(effects: list[dict], prefix: str):
+    from max_keyboards.builder import cb, inline_keyboard
+
+    return inline_keyboard([[cb(_effect_button_label(effect), f"{prefix}:{effect['id']}")] for effect in effects])
+
+
+async def _find_effect(value: str) -> dict | None:
+    effect = None
+    if value.isdigit():
+        effect = await crud.get_effect(config.database_path, int(value))
+    if not effect:
+        effect = await crud.get_effect_by_name(config.database_path, value)
+    return effect
 
 
 async def _send_main(bot: MaxBotAdapter, target_id: int, text: str | None = None) -> None:
@@ -659,11 +717,11 @@ async def _handle_concat2(event, bot: MaxBotAdapter, user_id: int, target_id: in
             return
         await asyncio.to_thread(concat_videos, [path1, str(path2)], str(output), config.ffmpeg_path)
         await bot.send_video(target_id, str(output))
-        await notify_admin(bot, config.admin_notify_ids, f"✅ Склейка видео выполнена. Пользователь {user_id} (@{get_username(event) or '-'})")
+        await notify_admin(bot, config.admin_notify_ids, _format_tool_admin_message("Склейка видео выполнена", user_id, get_username(event)))
     except Exception as e:
         logger.error("Concat error user_id=%s error=%s", user_id, e)
         await bot.send_message(target_id, "❌ Ошибка склейки видео. Проверьте формат и попробуйте снова.")
-        await notify_admin(bot, config.admin_notify_ids, f"❌ Ошибка FFmpeg: {e} (user {user_id} @{get_username(event) or '-'})")
+        await notify_admin(bot, config.admin_notify_ids, _format_tool_admin_message("Ошибка FFmpeg: склейка", user_id, get_username(event), ok=False, details={"Ошибка": str(e)}))
     finally:
         for item in (path1, str(path2), str(output)):
             try:
@@ -735,11 +793,30 @@ async def _handle_cut_timecodes(event, bot: MaxBotAdapter, user_id: int, target_
     try:
         await asyncio.to_thread(remove_fragment, str(input_path), start_sec, end_sec, str(output), config.ffmpeg_path)
         await bot.send_video(target_id, str(output))
-        await notify_admin(bot, config.admin_notify_ids, f"✅ Вырезан фрагмент. Пользователь {user_id} (@{get_username(event) or '-'})")
+        await notify_admin(
+            bot,
+            config.admin_notify_ids,
+            _format_tool_admin_message(
+                "Вырезан фрагмент",
+                user_id,
+                get_username(event),
+                details={"Интервал": f"{start_sec}-{end_sec} сек."},
+            ),
+        )
     except Exception as e:
         logger.error("Cut error user_id=%s error=%s", user_id, e)
         await bot.send_message(target_id, "❌ Ошибка обработки видео. Проверьте формат и попробуйте снова.")
-        await notify_admin(bot, config.admin_notify_ids, f"❌ Ошибка FFmpeg (cut): {e} (user {user_id} @{get_username(event) or '-'})")
+        await notify_admin(
+            bot,
+            config.admin_notify_ids,
+            _format_tool_admin_message(
+                "Ошибка FFmpeg: обрезка",
+                user_id,
+                get_username(event),
+                ok=False,
+                details={"Интервал": f"{start_sec}-{end_sec} сек.", "Ошибка": str(e)},
+            ),
+        )
     finally:
         for item in (input_path, str(output)):
             try:
@@ -1150,26 +1227,49 @@ async def _handle_admin_command(event, bot: MaxBotAdapter, user_id: int, target_
         await bot.send_message(
             target_id,
             "<b>Админ-команды</b>\n"
-            "/add_session\n/session_del\n/sub_on &lt;ID&gt; &lt;amount&gt;\n/sub_off &lt;ID&gt;\n/sub_check &lt;ID&gt;\n/sub_cancel &lt;ID&gt;\n"
-            "/adstats &lt;метка&gt;\n/adstats_all\n/botstats\n/adtag &lt;метка&gt;\n/genpromo &lt;кол-во&gt;\n/set_top\n/get_prompt\n"
-            "/admin_add &lt;ID&gt;\n/admin_del &lt;ID&gt;\n/admin_list",
+            "• /add_session — добавить эффект\n"
+            "• /session_del [ID/название] — удалить эффект\n"
+            "• /set_top [ID/название] — поднять эффект в ТОП\n"
+            "• /get_prompt [ID/название] — показать промпт\n\n"
+            "<b>Пользователи и подписки</b>\n"
+            "• /sub_on &lt;ID&gt; &lt;amount&gt; — начислить токены\n"
+            "• /sub_off &lt;ID&gt; — обнулить баланс\n"
+            "• /sub_check &lt;ID&gt; — проверить баланс и подписку\n"
+            "• /sub_cancel &lt;ID&gt; — отключить подписку\n\n"
+            "<b>Статистика и реклама</b>\n"
+            "• /adstats &lt;метка&gt; — статистика метки\n"
+            "• /adstats_all — все метки\n"
+            "• /botstats — общая статистика\n"
+            "• /adtag &lt;метка&gt; — ссылка с меткой\n"
+            "• /genpromo &lt;кол-во&gt; — промокод\n\n"
+            "<b>Owner</b>\n"
+            "• /admin_add &lt;ID&gt;\n"
+            "• /admin_del &lt;ID&gt;\n"
+            "• /admin_list",
         )
     elif command == "add_session":
         set_state(user_id, "admin_add_type")
         from max_keyboards.builder import cb, inline_keyboard
 
-        await bot.send_message(target_id, "Это эффект для ФОТО или для ВИДЕО?", reply_markup=inline_keyboard([[cb("Фото", "admin_add_type:photo"), cb("Видео", "admin_add_type:video")]]))
+        await bot.send_message(target_id, "Это эффект для ФОТО или для ВИДЕО?", reply_markup=inline_keyboard([[cb("📸 Фото", "admin_add_type:photo"), cb("🎬 Видео", "admin_add_type:video")]]))
     elif command == "session_del":
+        value = " ".join(args).strip()
+        if value:
+            effect = await _find_effect(value)
+            if not effect:
+                await bot.send_message(target_id, "Эффект не найден.")
+                return True
+            await crud.deactivate_effect(config.database_path, int(effect["id"]))
+            await bot.send_message(target_id, "Эффект удален (деактивирован).")
+            return True
         effects = await crud.list_effects(config.database_path, active_only=True)
         if not effects:
             await bot.send_message(target_id, "Эффектов нет.")
         else:
-            from max_keyboards.builder import cb, inline_keyboard
-
-            await bot.send_message(target_id, "Выберите эффект для удаления:", reply_markup=inline_keyboard([[cb(e["button_name"], f"admin_del:{e['id']}")] for e in effects[:50]]))
+            await bot.send_message(target_id, "Выберите эффект для удаления:", reply_markup=_effect_keyboard(effects, "admin_del"))
     elif command == "sub_on":
         if len(args) < 2 or not args[0].isdigit() or not args[1].isdigit():
-            await bot.send_message(target_id, "Использование: /sub_on <code>ID amount</code>")
+            await bot.send_message(target_id, "Использование: /sub_on <code>ID</code> <code>amount</code>")
         else:
             await crud.update_balance(config.database_path, int(args[0]), int(args[1]))
             await bot.send_message(target_id, f"Начислено {args[1]} токенов пользователю {args[0]}.")
@@ -1185,7 +1285,21 @@ async def _handle_admin_command(event, bot: MaxBotAdapter, user_id: int, target_
         else:
             balance = await crud.get_balance(config.database_path, int(args[0]))
             sub = await crud.get_subscription(config.database_path, int(args[0]))
-            await bot.send_message(target_id, f"Баланс пользователя {args[0]}: <b>{balance}</b> токенов\nПодписка: <code>{sub or '-'}</code>")
+            lines = [f"Баланс пользователя {args[0]}: <b>{balance}</b> токенов"]
+            if sub:
+                plan = get_plan(sub.get("plan_id") or "")
+                plan_text = f"{plan.title} ({plan.id})" if plan else sub.get("plan_id") or "-"
+                lines.extend(
+                    [
+                        f"Подписка: <b>{_html(plan_text)}</b>",
+                        f"Статус: <code>{_html(sub.get('status') or '-')}</code>",
+                        f"Автопродление: <b>{'да' if int(sub.get('auto_renew') or 0) else 'нет'}</b>",
+                        f"Доступно до: <b>{_html(_format_date(sub.get('current_period_end') or '-'))}</b>",
+                    ]
+                )
+            else:
+                lines.append("Подписка: <code>-</code>")
+            await bot.send_message(target_id, "\n".join(lines))
     elif command == "sub_cancel":
         if not args or not args[0].isdigit():
             await bot.send_message(target_id, "Использование: /sub_cancel <code>ID</code>")
@@ -1196,50 +1310,153 @@ async def _handle_admin_command(event, bot: MaxBotAdapter, user_id: int, target_
         if not args:
             await bot.send_message(target_id, "Использование: /adstats <code>метка</code>")
         else:
-            tag = args[0]
+            tag = " ".join(args).strip()
             users = await crud.count_users_by_utm(config.database_path, tag)
             buyers = await crud.count_buyers_by_utm(config.database_path, tag)
-            payments = await crud.sum_payments_by_utm(config.database_path, tag)
-            await bot.send_message(target_id, f"<b>Статистика метки</b> <code>{tag}</code>\nПользователи: {users}\nПокупатели: {buyers}\nПлатежи: {payments}")
+            conversion = (buyers / users * 100) if users else 0
+            total_rub = _rub_equivalent(await crud.sum_payments_by_utm(config.database_path, tag))
+            ltv = (total_rub / users) if users else 0
+            await bot.send_message(
+                target_id,
+                "📊 Статистика по метке\n"
+                f"Метка: <code>{_html(tag)}</code>\n"
+                f"Пользователей: {users}\n"
+                f"Покупателей: {buyers}\n"
+                f"Конверсия: {conversion:.2f}%\n"
+                f"Сумма оплат (RUB экв): {total_rub:.2f}\n"
+                f"LTV: {ltv:.2f}",
+            )
     elif command == "adstats_all":
         stats = await crud.list_utm_stats(config.database_path)
-        lines = ["<b>UTM-статистика</b>"]
-        for row in stats[:30]:
-            lines.append(f"<code>{row.get('utm_source') or 'без метки'}</code>: {row.get('users', 0)} / buyers {row.get('buyers', 0)}")
+        payments = await crud.list_utm_payments(config.database_path)
+        totals_map: dict[str | None, list[tuple[str, int]]] = {}
+        for utm_source, currency, amount in payments:
+            totals_map.setdefault(utm_source, []).append((currency, amount))
+
+        lines = ["📊 <b>Статистика по всем меткам</b>"]
+        for row in stats:
+            tag_value = row.get("utm_source")
+            tag = tag_value if tag_value else "без метки"
+            users = int(row.get("users") or 0)
+            buyers = int(row.get("buyers") or 0)
+            conversion = (buyers / users * 100) if users else 0
+            total_rub = _rub_equivalent(totals_map.get(tag_value, []))
+            ltv = (total_rub / users) if users else 0
+            lines.append(
+                f"• <code>{_html(tag)}</code> | users {users} | buyers {buyers} | "
+                f"conv {conversion:.1f}% | sum {total_rub:.0f} | LTV {ltv:.1f}"
+            )
+        if len(lines) == 1:
+            lines.append("Данных нет.")
         await bot.send_message(target_id, "\n".join(lines))
     elif command == "botstats":
-        users = await crud.count_users(config.database_path)
+        now_iso = datetime.utcnow().isoformat(timespec="seconds")
+        plans = get_plans()
+        week = plans.get("week")
+        month = plans.get("month")
+
+        total_users = await crud.count_users(config.database_path)
+        free_users = await crud.count_promo_used_users(config.database_path)
         paid_users = await crud.count_paid_users(config.database_path)
-        active = await crud.count_active_subscriptions(config.database_path, datetime.utcnow().isoformat(timespec="seconds"))
-        sums = await crud.sum_paid_by_currency(config.database_path)
-        await bot.send_message(target_id, f"<b>Статистика бота</b>\nПользователи: {users}\nПлатившие: {paid_users}\nАктивные подписки: {active}\nОплаты: {sums}")
+        active_subs = await crud.count_active_subscriptions(config.database_path, now_iso)
+        subs_by_plan = await crud.count_active_subscriptions_by_plan(config.database_path, now_iso)
+        stars_payments = await crud.count_paid_transactions_by_currency(config.database_path, "XTR")
+        stars_buyers = await crud.count_paid_users_by_currency(config.database_path, "XTR")
+
+        totals = await crud.sum_paid_by_currency(config.database_path)
+        total_rub = 0
+        total_xtr = 0
+        for currency, amount in totals:
+            if currency == "RUB":
+                total_rub += amount
+            elif currency == "XTR":
+                total_xtr += amount
+        total_revenue_rub = total_rub + total_xtr * _stars_rub_rate()
+
+        conversion = (paid_users / total_users * 100) if total_users else 0
+        arpu = (total_revenue_rub / total_users) if total_users else 0
+        arppu = (total_revenue_rub / paid_users) if paid_users else 0
+
+        week_label = week.title.lower() if week else "неделя"
+        month_label = month.title.lower() if month else "месяц"
+        week_price = week.price_rub if week else 0
+        month_price = month.price_rub if month else 0
+
+        await bot.send_message(
+            target_id,
+            "📊 <b>Общая статистика бота</b>\n\n"
+            f"👥 Всего пользователей: {total_users}\n"
+            f"🎁 Использовали бесплатную генерацию: {free_users}\n"
+            f"💳 Оплативших: {paid_users}\n"
+            f"🔥 Активных подписок: {active_subs}\n"
+            f"🟢 Подписка {week_price}₽ ({week_label}): {subs_by_plan.get('week', 0)}\n"
+            f"🔵 Подписка {month_price}₽ ({month_label}): {subs_by_plan.get('month', 0)}\n"
+            f"⭐ Оплаты Stars (XTR): {stars_payments}\n"
+            f"⭐ Покупателей Stars: {stars_buyers}\n"
+            f"⭐ Сумма Stars: {total_xtr} XTR\n"
+            f"💰 Выручка: {total_revenue_rub:.0f} ₽\n\n"
+            f"📈 Конверсия в оплату: {conversion:.2f}%\n"
+            f"💵 ARPU: {arpu:.2f} ₽\n"
+            f"💎 ARPPU: {arppu:.2f} ₽",
+        )
     elif command == "adtag":
         if not args:
             await bot.send_message(target_id, "Использование: /adtag <code>метка</code>")
         else:
+            tag = " ".join(args).strip()
             try:
                 me = await bot.get_me()
                 username = getattr(me, "username", None)
             except Exception:
                 username = None
-            link = _start_link(args[0], username)
-            await bot.send_message(target_id, f"Ссылка для метки <code>{args[0]}</code>:\n<code>{link}</code>")
+            link = _start_link(tag, username)
+            await bot.send_message(target_id, f"Метка: <code>{_html(tag)}</code>\nСсылка: <code>{link}</code>")
     elif command == "genpromo":
         if not args or not args[0].isdigit():
             await bot.send_message(target_id, "Использование: /genpromo <code>кол-во</code>")
         else:
-            code = uuid.uuid4().hex[:10].upper()
-            await crud.create_promocode(config.database_path, code, int(args[0]))
-            await bot.send_message(target_id, f"Промокод создан: <code>{code}</code>")
-    elif command in {"set_top", "get_prompt"}:
+            credits = int(args[0])
+            code = secrets.token_urlsafe(6)
+            await crud.create_promocode(config.database_path, code, credits)
+            try:
+                me = await bot.get_me()
+                username = getattr(me, "username", None)
+            except Exception:
+                username = None
+            link = _start_link(f"promo_{code}", username)
+            await bot.send_message(target_id, f"Промокод создан: {link}")
+            await notify_admin(bot, config.admin_notify_ids, f"🎁 Создан промокод на {credits} токенов: {code}")
+    elif command == "set_top":
+        value = " ".join(args).strip()
+        if value:
+            effect = await _find_effect(value)
+            if effect:
+                await crud.set_effect_top(config.database_path, int(effect["id"]))
+                await bot.send_message(target_id, f"Эффект \"{_html(effect['button_name'])}\" поднят в ТОП.")
+                return True
         effects = await crud.list_effects(config.database_path, active_only=True)
-        from max_keyboards.builder import cb, inline_keyboard
-
-        prefix = "admin_top" if command == "set_top" else "admin_prompt"
-        await bot.send_message(target_id, "Выберите эффект:", reply_markup=inline_keyboard([[cb(e["button_name"], f"{prefix}:{e['id']}")] for e in effects[:50]]))
+        if not effects:
+            await bot.send_message(target_id, "Эффектов нет.")
+        else:
+            await bot.send_message(target_id, "Выберите эффект для поднятия в ТОП:", reply_markup=_effect_keyboard(effects, "admin_top"))
+    elif command == "get_prompt":
+        value = " ".join(args).strip()
+        if value:
+            effect = await _find_effect(value)
+            await bot.send_message(target_id, _format_effect_prompt(effect) if effect else "Эффект не найден.")
+            return True
+        effects = await crud.list_effects(config.database_path, active_only=False)
+        if not effects:
+            await bot.send_message(target_id, "Эффектов нет.")
+        else:
+            await bot.send_message(target_id, "Выберите эффект, чтобы посмотреть промпт:", reply_markup=_effect_keyboard(effects, "admin_prompt"))
     elif command == "admin_list":
-        admins = await crud.list_admins(config.database_path)
-        await bot.send_message(target_id, "Админы:\n" + "\n".join(f"- {a}" for a in admins) if admins else "Админов нет.")
+        if not _is_owner(user_id):
+            await bot.send_message(target_id, "Только owner.")
+        else:
+            admins = await crud.list_admins(config.database_path)
+            all_admins = list(dict.fromkeys(config.admin_ids + admins))
+            await bot.send_message(target_id, "Админы:\n" + "\n".join(f"- {a}" for a in all_admins) if all_admins else "Админов нет.")
     elif command == "admin_add":
         if not _is_owner(user_id):
             await bot.send_message(target_id, "Только owner.")
@@ -1266,21 +1483,25 @@ async def _handle_admin_state(event, bot: MaxBotAdapter, user_id: int, target_id
         clear_state(user_id)
         return True
 
-    text = get_text(event)
+    text = (get_text(event) or "").strip()
     if name == "admin_add_name":
         if not text:
-            await bot.send_message(target_id, "Название не может быть пустым.")
+            await bot.send_message(target_id, "Название не может быть пустым. Попробуйте снова.")
             return True
         set_state(user_id, "admin_add_prompt", **state_data(user_id), button_name=text)
-        await bot.send_message(target_id, "Теперь отправьте промпт.")
+        await bot.send_message(target_id, "Теперь отправьте промпт (на английском).")
     elif name == "admin_add_prompt":
         if not text:
-            await bot.send_message(target_id, "Промпт не может быть пустым.")
+            await bot.send_message(target_id, "Промпт не может быть пустым. Попробуйте снова.")
             return True
         set_state(user_id, "admin_add_demo", **state_data(user_id), prompt=text)
-        await bot.send_message(target_id, 'Пришлите демо-видео или фото. Если примера нет, напишите "нет".')
+        await bot.send_message(target_id, 'Пришлите демо-видео или фото. Если примера нет — напишите "нет".')
     elif name == "admin_add_demo":
         data = state_data(user_id)
+        if not data.get("button_name") or not data.get("prompt"):
+            clear_state(user_id)
+            await bot.send_message(target_id, "Данные потеряны. Начните заново.")
+            return True
         demo_file_id = None
         demo_type = None
         if text.lower() not in {"нет", "no", "-"}:
@@ -1301,6 +1522,9 @@ async def _handle_admin_state(event, bot: MaxBotAdapter, user_id: int, target_id
                     except Exception as e:
                         logger.warning("Admin demo video persist failed user_id=%s error=%s", user_id, e)
                         demo_file_id = source
+            if not demo_file_id:
+                await bot.send_message(target_id, 'Нужно видео или фото, либо напишите "нет".')
+                return True
         effect_id = await crud.add_effect(
             config.database_path,
             data["button_name"],
@@ -1400,20 +1624,31 @@ async def handle_callback(event) -> None:
             await _handle_duration(event, bot, user_id, target_id, int(value))
     elif payload.startswith("admin_add_type:") and await _is_admin(user_id):
         effect_type = payload.rsplit(":", 1)[1]
+        if effect_type not in {"photo", "video"}:
+            await bot.send_message(target_id, "Неизвестный тип эффекта.")
+            return
         set_state(user_id, "admin_add_name", effect_type=effect_type)
-        await bot.send_message(target_id, "Введите название кнопки.")
+        await bot.send_message(target_id, "Введите название кнопки (например: Поцелуй в камеру 😘).")
     elif payload.startswith("admin_del:") and await _is_admin(user_id):
         effect_id = int(payload.rsplit(":", 1)[1])
+        effect = await crud.get_effect(config.database_path, effect_id)
+        if not effect:
+            await bot.send_message(target_id, "Эффект не найден.")
+            return
         await crud.deactivate_effect(config.database_path, effect_id)
-        await bot.send_message(target_id, "Эффект удален.")
+        await bot.send_message(target_id, "Эффект удален (деактивирован).")
     elif payload.startswith("admin_top:") and await _is_admin(user_id):
         effect_id = int(payload.rsplit(":", 1)[1])
+        effect = await crud.get_effect(config.database_path, effect_id)
+        if not effect:
+            await bot.send_message(target_id, "Эффект не найден.")
+            return
         await crud.set_effect_top(config.database_path, effect_id)
-        await bot.send_message(target_id, "Эффект поднят в ТОП.")
+        await bot.send_message(target_id, f"Эффект \"{_html(effect['button_name'])}\" поднят в ТОП.")
     elif payload.startswith("admin_prompt:") and await _is_admin(user_id):
         effect_id = int(payload.rsplit(":", 1)[1])
         effect = await crud.get_effect(config.database_path, effect_id)
-        await bot.send_message(target_id, f"<b>{effect['button_name']}</b>\n<code>{effect['prompt']}</code>" if effect else "Эффект не найден.")
+        await bot.send_message(target_id, _format_effect_prompt(effect) if effect else "Эффект не найден.")
     elif await _handle_payment_callback(payload, bot, user_id, username=get_username(event)):
         return
 
