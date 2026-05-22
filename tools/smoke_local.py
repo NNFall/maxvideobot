@@ -68,8 +68,9 @@ async def main() -> None:
         assert "Создать презентацию" not in menu_json
         subscription_json = choose_subscription_kb(get_plans()).model_dump_json()
         assert "разово" not in subscription_json.lower()
-        support_kb = help_kb("https://web.max.ru/69942834")
-        assert "https://web.max.ru/69942834" in support_kb.model_dump_json()
+        support_url = "https://max.ru/u/f9LHodD0cOL1NLfuFBoMvvVMSgRmsLKspQSSM1d9_6ZR68W1oT3zfN20xA8"
+        support_kb = help_kb(support_url)
+        assert support_url in support_kb.model_dump_json()
         assert hasattr(router, "message_created")
         assert hasattr(router, "message_callback")
         assert hasattr(router, "bot_started")

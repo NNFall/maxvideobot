@@ -142,7 +142,7 @@ python tools/smoke_local.py
 ### Сделано
 
 - `OFFER_URL` по умолчанию заменен на актуальную оферту фото/видео-бота.
-- `PRODUCT_SUPPORT` по умолчанию заменен на `https://web.max.ru/69942834`.
+- `PRODUCT_SUPPORT` по умолчанию заменен на ссылку MAX-техподдержки.
 - В меню помощи добавлена link-кнопка `🛟 Техподдержка`; кнопка `🏠 Главное меню` оставлена отдельной строкой.
 
 ### Проверки
@@ -310,6 +310,26 @@ python tools/smoke_local.py
 ```
 
 Результат: успешно.
+
+### Риски
+
+- На production сервере нужно отдельно обновить `/root/maxvideobot/.env`, потому что он переопределяет дефолт из `config.py`.
+
+## 2026-05-22, ссылка техподдержки
+
+### Сделано
+
+- Текущая production-ссылка техподдержки до правки: `https://web.max.ru/69942834`.
+- `PRODUCT_SUPPORT` в `config.py` и `.env.example` заменен на `https://max.ru/u/f9LHodD0cOL1NLfuFBoMvvVMSgRmsLKspQSSM1d9_6ZR68W1oT3zfN20xA8`.
+
+### Проверки
+
+```bash
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+python tools/smoke_local.py
+```
+
+Результат: успешно. `tools/smoke_local.py` проверяет новую ссылку техподдержки в keyboard.
 
 ### Риски
 

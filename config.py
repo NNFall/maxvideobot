@@ -110,7 +110,11 @@ def load_config() -> Config:
         yookassa_payment_subject=_get_env("YOOKASSA_PAYMENT_SUBJECT", "") or "",
         yookassa_payment_mode=_get_env("YOOKASSA_PAYMENT_MODE", "") or "",
         offer_url=_get_env("OFFER_URL", "https://dimonk95.github.io/photo-video-ai-max/") or "",
-        support_contact=_get_env("PRODUCT_SUPPORT", "https://web.max.ru/69942834") or "https://web.max.ru/69942834",
+        support_contact=_get_env(
+            "PRODUCT_SUPPORT",
+            "https://max.ru/u/f9LHodD0cOL1NLfuFBoMvvVMSgRmsLKspQSSM1d9_6ZR68W1oT3zfN20xA8",
+        )
+        or "https://max.ru/u/f9LHodD0cOL1NLfuFBoMvvVMSgRmsLKspQSSM1d9_6ZR68W1oT3zfN20xA8",
         admin_ids=admin_ids,
         admin_notify_ids=admin_notify_ids,
         database_path=_get_env("DATABASE_PATH", "database/database.db") or "database/database.db",
