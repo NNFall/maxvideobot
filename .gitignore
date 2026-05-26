@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 data/
+backups/
 telegram_video_bot/
 media/temp/*
 !media/temp/.gitkeep
