@@ -51,7 +51,7 @@ async def main() -> None:
 
         from database import crud
         from database.db import setup
-        from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _handle_admin_command, _persist_demo_media, _persist_pending_media, _process_start, router
+        from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _handle_admin_command, _persist_demo_media, _persist_pending_media, _process_start, _show_balance, router
         from max_handlers.utils import answer_callback_message, get_media_source
         from max_keyboards.effects_kb import effects_kb
         from max_keyboards.common_kb import help_kb
@@ -179,6 +179,38 @@ async def main() -> None:
         assert "Метка: <code>smoke</code>" in (bot.messages[-1][1] or "")
         await _handle_admin_command(SimpleNamespace(), bot, 1001, 1001, "session_del", [str(effect_id)])
         assert bot.messages[-1][1] == "Эффект удален (деактивирован)."
+
+        await crud.upsert_subscription(
+            db_path,
+            user_id=1002,
+            plan_id="week",
+            provider="yookassa",
+            auto_renew=1,
+            payment_method_id="pm-active",
+            current_period_start="2026-05-01T00:00:00",
+            current_period_end="2099-01-01T00:00:00",
+            status="active",
+        )
+        await crud.set_balance(db_path, 1002, 60)
+        await _show_balance(bot, 1002, 1002)
+        assert "✅ <b>Подписка активна</b>" in (bot.messages[-1][1] or "")
+        assert "Автопродление" not in (bot.messages[-1][1] or "")
+        assert "Доступно до" not in (bot.messages[-1][1] or "")
+
+        await crud.upsert_subscription(
+            db_path,
+            user_id=1003,
+            plan_id="week",
+            provider="yookassa",
+            auto_renew=0,
+            payment_method_id="pm-canceled",
+            current_period_start="2026-05-01T00:00:00",
+            current_period_end="2099-01-01T00:00:00",
+            status="inactive",
+        )
+        await crud.set_balance(db_path, 1003, 60)
+        await _show_balance(bot, 1003, 1003)
+        assert "❌ <b>Подписка не активна</b>" in (bot.messages[-1][1] or "")
 
         print("SMOKE OK")
         print(f"db={db_path}")

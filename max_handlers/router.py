@@ -332,24 +332,16 @@ async def _show_balance(bot: MaxBotAdapter, target_id: int, user_id: int) -> Non
     await _expire_if_needed(user_id)
     balance = await crud.get_balance(config.database_path, user_id)
     sub = await crud.get_subscription(config.database_path, user_id)
-    plans = get_plans()
-
-    is_active = False
-    if sub and sub.get("status") in ("active", "inactive"):
-        end = _parse_datetime(sub.get("current_period_end"))
-        is_active = bool(end and datetime.utcnow() < end)
+    is_active = sub and sub.get("status") == "active" and int(sub.get("auto_renew", 0)) == 1
     if is_active:
         plan = get_plan(sub["plan_id"])
         plan_title = f"{plan.price_rub} ₽ / {plan.title} — {plan.generations} токенов" if plan else sub["plan_id"]
         auto_renew = int(sub.get("auto_renew", 0)) == 1
-        renew_status = "включено" if auto_renew else "отключено"
         await bot.send_message(
             target_id,
             "✅ <b>Подписка активна</b>\n"
             f"Тариф: <b>{plan_title}</b>\n"
-            f"Остаток токенов: <b>{balance}</b>\n"
-            f"Доступно до: <b>{_format_date(sub['current_period_end'])}</b>\n"
-            f"Автопродление: <b>{renew_status}</b>",
+            f"Остаток токенов: <b>{balance}</b>",
             reply_markup=subscription_manage_kb(sub["plan_id"], auto_renew),
         )
         return
@@ -1192,7 +1184,6 @@ async def _handle_payment_callback(payload: str, bot: MaxBotAdapter, user_id: in
         end_date = _format_date(sub.get("current_period_end") or "неизвестно")
         await crud.cancel_subscription(config.database_path, user_id)
         await bot.send_message(user_id, "✅ Подписка отменена. Автопродление отключено.")
-        await bot.send_message(user_id, f"Текущие токены доступны до <b>{end_date}</b>.")
         await notify_admin(bot, config.admin_notify_ids, _format_cancel_admin_message(user_id, username, sub, end_date))
         return True
     return False
