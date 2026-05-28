@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from max_keyboards.builder import cb, inline_keyboard
+from max_keyboards.builder import cb, inline_keyboard, link
+
+
+SONG_BOT_URL = "https://max.ru/id644927208311_bot?start=gen"
 
 
 def main_menu_kb():
@@ -12,6 +15,7 @@ def main_menu_kb():
             [cb("✨ Видео-эффекты", "menu:effects")],
             [cb("🎬 Создать видео", "menu:custom")],
             [cb("📼 Инструменты", "menu:tools")],
+            [link("🎤 Создать песню", SONG_BOT_URL)],
             [cb("💳 Баланс / Купить", "menu:balance")],
             [cb("❓ Помощь", "menu:help")],
         ]

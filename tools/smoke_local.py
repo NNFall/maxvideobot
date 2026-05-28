@@ -56,7 +56,7 @@ async def main() -> None:
         from max_keyboards.custom_kb import duration_kb
         from max_keyboards.effects_kb import effects_kb
         from max_keyboards.common_kb import help_kb
-        from max_keyboards.main_menu import main_menu_kb
+        from max_keyboards.main_menu import SONG_BOT_URL, main_menu_kb
         from max_keyboards.payment_kb import choose_subscription_kb
         from services.generation import _build_admin_error_message, _build_user_error_message
         from services.replicate_api import encode_image
@@ -67,7 +67,9 @@ async def main() -> None:
         kb = main_menu_kb()
         assert kb is not None
         menu_json = kb.model_dump_json()
-        assert "Создать песню" not in menu_json
+        assert "Создать песню" in menu_json
+        assert SONG_BOT_URL in menu_json
+        assert menu_json.index("Инструменты") < menu_json.index("Создать песню") < menu_json.index("Баланс / Купить")
         assert "Создать презентацию" not in menu_json
         subscription_json = choose_subscription_kb(get_plans()).model_dump_json()
         assert "разово" not in subscription_json.lower()
