@@ -53,10 +53,13 @@ async def main() -> None:
         from database.db import setup
         from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _handle_admin_command, _persist_demo_media, _persist_pending_media, _process_start, _show_balance, router
         from max_handlers.utils import answer_callback_message, get_media_source
+        from max_keyboards.custom_kb import duration_kb
         from max_keyboards.effects_kb import effects_kb
         from max_keyboards.common_kb import help_kb
         from max_keyboards.main_menu import main_menu_kb
         from max_keyboards.payment_kb import choose_subscription_kb
+        from services.generation import _build_admin_error_message, _build_user_error_message
+        from services.replicate_api import encode_image
         from services.subscriptions import get_plans
 
         await setup(db_path)
@@ -74,6 +77,15 @@ async def main() -> None:
         assert hasattr(router, "message_created")
         assert hasattr(router, "message_callback")
         assert hasattr(router, "bot_started")
+        duration_rows = duration_kb(1, 15).model_dump()["payload"]["buttons"]
+        assert max(len(row) for row in duration_rows) <= 3
+        user_error = _build_user_error_message(RuntimeError("smoke"))
+        admin_error = _build_admin_error_message("Smoke", RuntimeError("smoke"), 1001, "smoke_user")
+        assert "\\n" not in user_error and "\n" in user_error
+        assert "\\n" not in admin_error and "\n" in admin_error
+        image_path = Path(tmp) / "image-with-wrong-extension.jpg"
+        image_path.write_bytes(b"RIFF\x00\x00\x00\x00WEBPVP8 ")
+        assert encode_image(str(image_path)).startswith("data:image/webp;base64,")
 
         await crud.create_promocode(db_path, "SMOKE", 7)
         bot = FakeBot()

@@ -91,10 +91,24 @@ def encode_image(image_path: str) -> str:
     path = Path(image_path)
     raw = path.read_bytes()
     b64 = base64.b64encode(raw).decode('ascii')
-    mime, _ = mimetypes.guess_type(str(path))
+    mime = _detect_image_mime(raw)
+    if not mime:
+        mime, _ = mimetypes.guess_type(str(path))
     if not mime:
         mime = 'image/jpeg'
     return f"data:{mime};base64,{b64}"
+
+
+def _detect_image_mime(raw: bytes) -> str | None:
+    if raw.startswith(b'\xff\xd8\xff'):
+        return 'image/jpeg'
+    if raw.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'image/png'
+    if raw.startswith(b'RIFF') and raw[8:12] == b'WEBP':
+        return 'image/webp'
+    if raw.startswith((b'GIF87a', b'GIF89a')):
+        return 'image/gif'
+    return None
 
 
 def create_prediction(

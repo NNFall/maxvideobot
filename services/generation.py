@@ -84,11 +84,11 @@ def _is_kie_policy_error(exc: Exception) -> bool:
 def _build_user_error_message(exc: Exception) -> str:
     if _is_replicate_sensitive_error(exc) or _is_kie_policy_error(exc):
         return (
-            '\u26a0\ufe0f \u0417\u0430\u043f\u0440\u043e\u0441 \u043e\u0442\u043a\u043b\u043e\u043d\u0435\u043d \u0444\u0438\u043b\u044c\u0442\u0440\u043e\u043c \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438.\\n'
-            '\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u0435 \u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u043a\u0443 \u0437\u0430\u043f\u0440\u043e\u0441\u0430 \u0438\u043b\u0438 \u0444\u043e\u0442\u043e \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0441\u043d\u043e\u0432\u0430.\\n'
+            '\u26a0\ufe0f \u0417\u0430\u043f\u0440\u043e\u0441 \u043e\u0442\u043a\u043b\u043e\u043d\u0435\u043d \u0444\u0438\u043b\u044c\u0442\u0440\u043e\u043c \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438.\n'
+            '\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u0435 \u0444\u043e\u0440\u043c\u0443\u043b\u0438\u0440\u043e\u0432\u043a\u0443 \u0437\u0430\u043f\u0440\u043e\u0441\u0430 \u0438\u043b\u0438 \u0444\u043e\u0442\u043e \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0441\u043d\u043e\u0432\u0430.\n'
             '\u0422\u043e\u043a\u0435\u043d\u044b \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d\u044b.'
         )
-    return '\u274c \u0418\u0437\u0432\u0438\u043d\u0438\u0442\u0435, \u043f\u0440\u043e\u0438\u0437\u043e\u0448\u043b\u0430 \u043e\u0448\u0438\u0431\u043a\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u043e\u0437\u0436\u0435.\\n\u0422\u043e\u043a\u0435\u043d\u044b \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d\u044b.'
+    return '\u274c \u0418\u0437\u0432\u0438\u043d\u0438\u0442\u0435, \u043f\u0440\u043e\u0438\u0437\u043e\u0448\u043b\u0430 \u043e\u0448\u0438\u0431\u043a\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u043e\u0437\u0436\u0435.\n\u0422\u043e\u043a\u0435\u043d\u044b \u0432\u043e\u0437\u0432\u0440\u0430\u0449\u0435\u043d\u044b.'
 
 
 def _error_kind(exc: Exception) -> str:
@@ -115,10 +115,10 @@ def _build_admin_error_message(
     username: str | None,
 ) -> str:
     return (
-        '\u274c <b>\u041e\u0448\u0438\u0431\u043a\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438</b>\\n'
-        f'\u041f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440: <code>{_html(error_source)}</code>\\n'
-        f'\u0422\u0438\u043f: {_error_kind(exc)}\\n'
-        f'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c: <code>{user_id}</code> (@{_html(username or '-')})\\n'
+        '\u274c <b>\u041e\u0448\u0438\u0431\u043a\u0430 \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0438\u0438</b>\n'
+        f'\u041f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440: <code>{_html(error_source)}</code>\n'
+        f'\u0422\u0438\u043f: {_error_kind(exc)}\n'
+        f'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c: <code>{user_id}</code> (@{_html(username or '-')})\n'
         f'\u0414\u0435\u0442\u0430\u043b\u0438: <code>{_html(shorten(str(exc), 350))}</code>'
     )
 
@@ -221,6 +221,7 @@ async def run_effect_generation(
     temp_path = temp_dir / f"effect_{user_id}_{uuid.uuid4().hex}.jpg"
     final_prompt = f"{config.system_prompt} {effect['prompt']}".strip()
 
+    error_source = 'Kie.ai'
     try:
         await bot.download(photo_file_id, destination=temp_path)
         await bot.send_message(
@@ -247,7 +248,26 @@ async def run_effect_generation(
                 raise RuntimeError('Kie result url not found')
             return url
 
-        url = await _with_retries('Kie video generation', user_id, username, _kie_video_once)
+        try:
+            url = await _with_retries('Kie video generation', user_id, username, _kie_video_once)
+        except Exception as kie_error:
+            if _is_kie_policy_error(kie_error):
+                raise
+            logger.warning(
+                'Kie video effect failed after retries, fallback to Replicate %s effect_id=%s error=%s',
+                format_user(user_id, username),
+                effect_id,
+                kie_error,
+            )
+            error_source = 'Replicate (video fallback)'
+            image_input = await _resolve_replicate_image_input(bot, photo_file_id, temp_path, config.bot_token)
+            url = await _replicate_video_url(
+                user_id,
+                username,
+                final_prompt,
+                image_input,
+                6,
+            )
 
         await bot.send_video(chat_id, url)
         await bot.send_message(
@@ -277,7 +297,7 @@ async def run_effect_generation(
         await notify_admin(
             bot,
             config.admin_notify_ids,
-            _build_admin_error_message('Kie.ai', e, user_id, username)
+            _build_admin_error_message(error_source, e, user_id, username)
         )
         return False
     finally:
@@ -297,14 +317,100 @@ async def _resolve_replicate_image_input(
     temp_path: Path,
     bot_token: str,
 ) -> str:
-    try:
-        public_url = await bot.resolve_public_file_url(photo_file_id)
-        if public_url:
-            return public_url
-    except Exception:
-        pass
-
+    _ = (bot, photo_file_id, bot_token)
     return encode_image(str(temp_path))
+
+
+async def _replicate_video_url(
+    user_id: int,
+    username: str | None,
+    final_prompt: str,
+    image_input: str,
+    duration: int,
+    aspect_ratio: str | None = None,
+) -> str:
+    config = load_config()
+    replicate_error: Exception | None = None
+    url: str | None = None
+    for attempt in range(1, REPLICATE_VIDEO_MAX_ATTEMPTS + 1):
+        try:
+            try:
+                prediction = await asyncio.to_thread(
+                    create_prediction,
+                    image_input,
+                    final_prompt,
+                    duration,
+                    config.replicate_api_token,
+                    config.replicate_api_url,
+                    config.replicate_model_version,
+                    config.replicate_image_field,
+                    aspect_ratio,
+                )
+            except Exception:
+                if aspect_ratio:
+                    logger.warning('Replicate aspect_ratio rejected, retry without. ratio=%s', aspect_ratio)
+                    prediction = await asyncio.to_thread(
+                        create_prediction,
+                        image_input,
+                        final_prompt,
+                        duration,
+                        config.replicate_api_token,
+                        config.replicate_api_url,
+                        config.replicate_model_version,
+                        config.replicate_image_field,
+                        None,
+                    )
+                else:
+                    raise
+
+            prediction_id = prediction.get('id')
+            if not prediction_id:
+                raise RuntimeError('Replicate missing prediction id')
+            logger.info(
+                'Replicate task created prediction_id=%s %s attempt=%s/%s',
+                prediction_id,
+                format_user(user_id, username),
+                attempt,
+                REPLICATE_VIDEO_MAX_ATTEMPTS,
+            )
+
+            prediction = await poll_prediction(
+                prediction_id,
+                config.replicate_api_token,
+                config.replicate_api_url,
+                interval_sec=REPLICATE_POLL_INTERVAL_SEC,
+                timeout_sec=REPLICATE_VIDEO_ATTEMPT_TIMEOUT_SEC,
+            )
+            url = extract_output_url(prediction)
+            if not url:
+                raise RuntimeError('Replicate output url not found')
+            break
+        except Exception as e:
+            replicate_error = e
+            logger.warning(
+                'Replicate attempt failed %s attempt=%s/%s error=%s',
+                format_user(user_id, username),
+                attempt,
+                REPLICATE_VIDEO_MAX_ATTEMPTS,
+                e,
+            )
+            err_text = str(e)
+            if _is_replicate_no_retry_error(e):
+                break
+            if attempt < REPLICATE_VIDEO_MAX_ATTEMPTS:
+                if 'status=429' in err_text or 'Too Many Requests' in err_text:
+                    await asyncio.sleep(10 * attempt)
+                else:
+                    await asyncio.sleep(2)
+
+    if not url:
+        logger.warning(
+            'Replicate failed after retries %s error=%s',
+            format_user(user_id, username),
+            replicate_error,
+        )
+        raise replicate_error or RuntimeError('Replicate generation failed')
+    return url
 
 
 async def _replicate_image_urls(
