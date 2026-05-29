@@ -150,15 +150,29 @@ def _walk(value: Any) -> Iterable[Any]:
             yield from _walk(child)
 
 
-def _find_urls(value: Any) -> list[str]:
+def _looks_like_image_url(url: str) -> bool:
+    clean = url.split("?", 1)[0].lower()
+    return clean.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".heic", ".heif"))
+
+
+def _find_urls(value: Any, keys: tuple[str, ...] | None = None) -> list[str]:
     urls = []
+    search_keys = keys or ("url", "download_url", "mp4_1080", "mp4_720", "mp4_480", "mp4_360", "mp4_240", "mp4_144", "hls")
     for node in _walk(value):
         if isinstance(node, dict):
-            for key in ("url", "download_url", "mp4_1080", "mp4_720", "mp4_480", "mp4_360", "mp4_240", "mp4_144", "hls"):
+            for key in search_keys:
                 candidate = node.get(key)
                 if isinstance(candidate, str) and candidate.startswith(("http://", "https://")):
                     urls.append(candidate)
     return urls
+
+
+def _find_video_urls(value: Any) -> list[str]:
+    mp4_urls = _find_urls(value, ("mp4_1080", "mp4_720", "mp4_480", "mp4_360", "mp4_240", "mp4_144"))
+    if mp4_urls:
+        return mp4_urls
+    direct_urls = _find_urls(value, ("download_url", "url"))
+    return [url for url in direct_urls if not _looks_like_image_url(url)]
 
 
 def _attachment_type(att: Any) -> str:
@@ -178,7 +192,7 @@ def get_media_source(event, expected: str) -> tuple[str | None, int | None, int 
     fallback = None
     for att in attachments:
         att_type = _attachment_type(att)
-        urls = _find_urls(att)
+        urls = _find_video_urls(att) if expected == "video" else _find_urls(att, ("url", "download_url"))
         if not urls:
             continue
         dumped = _model_dump(att)

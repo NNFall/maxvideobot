@@ -4,6 +4,8 @@ from pathlib import Path
 import subprocess
 import logging
 
+from services.logging_utils import shorten
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +37,7 @@ def concat_videos(video_paths: list[str], output_path: str, ffmpeg_path: str = '
 
         logger.info('FFmpeg concat list=%s', list_file)
 
-        cmd = [
+        copy_cmd = [
             ffmpeg_path,
             '-y',
             '-f', 'concat',
@@ -45,16 +47,48 @@ def concat_videos(video_paths: list[str], output_path: str, ffmpeg_path: str = '
             str(out.resolve()),
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(copy_cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            logger.error('FFmpeg concat failed: %s', result.stderr or 'unknown error')
-            raise RuntimeError(result.stderr or 'ffmpeg concat failed')
+            logger.warning('FFmpeg concat stream copy failed, retry with transcode: %s', shorten(result.stderr or 'unknown error', 500))
+            _concat_videos_transcode(video_paths, str(out.resolve()), ffmpeg_path)
         logger.info('FFmpeg concat success output=%s', out)
     finally:
         try:
             list_file.unlink(missing_ok=True)
         except Exception:
             pass
+
+
+def _concat_videos_transcode(video_paths: list[str], output_path: str, ffmpeg_path: str = 'ffmpeg') -> None:
+    inputs: list[str] = []
+    filters: list[str] = []
+    concat_inputs: list[str] = []
+    for idx, path in enumerate(video_paths):
+        inputs.extend(['-i', str(Path(path).resolve())])
+        filters.append(
+            f'[{idx}:v]scale=720:1280:force_original_aspect_ratio=decrease,'
+            f'pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v{idx}]'
+        )
+        concat_inputs.append(f'[v{idx}]')
+
+    filter_complex = ';'.join(filters) + ';' + ''.join(concat_inputs) + f'concat=n={len(video_paths)}:v=1:a=0[v]'
+    cmd = [
+        ffmpeg_path,
+        '-y',
+        *inputs,
+        '-filter_complex', filter_complex,
+        '-map', '[v]',
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-crf', '23',
+        '-an',
+        '-movflags', '+faststart',
+        str(Path(output_path).resolve()),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        logger.error('FFmpeg concat transcode failed: %s', shorten(result.stderr or 'unknown error', 500))
+        raise RuntimeError(result.stderr or 'ffmpeg concat failed')
 
 
 def remove_fragment(

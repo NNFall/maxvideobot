@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -51,7 +52,7 @@ async def main() -> None:
 
         from database import crud
         from database.db import setup
-        from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _handle_admin_command, _persist_demo_media, _persist_pending_media, _process_start, _show_balance, router
+        from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _format_tool_admin_message, _handle_admin_command, _persist_demo_media, _persist_pending_media, _process_start, _show_balance, router
         from max_handlers.utils import answer_callback_message, get_media_source
         from max_keyboards.custom_kb import duration_kb
         from max_keyboards.effects_kb import effects_kb
@@ -59,6 +60,7 @@ async def main() -> None:
         from max_keyboards.main_menu import SONG_BOT_URL, main_menu_kb
         from max_keyboards.payment_kb import choose_subscription_kb
         from services.generation import _build_admin_error_message, _build_user_error_message
+        from services.ffmpeg_service import check_ffmpeg, concat_videos
         from services.replicate_api import encode_image
         from services.subscriptions import get_plans
 
@@ -85,6 +87,8 @@ async def main() -> None:
         admin_error = _build_admin_error_message("Smoke", RuntimeError("smoke"), 1001, "smoke_user")
         assert "\\n" not in user_error and "\n" in user_error
         assert "\\n" not in admin_error and "\n" in admin_error
+        tool_error = _format_tool_admin_message("Smoke", 1001, "smoke_user", ok=False, details={"error": "x" * 1200})
+        assert "x" * 600 not in tool_error
         image_path = Path(tmp) / "image-with-wrong-extension.jpg"
         image_path.write_bytes(b"RIFF\x00\x00\x00\x00WEBPVP8 ")
         assert encode_image(str(image_path)).startswith("data:image/webp;base64,")
@@ -132,8 +136,9 @@ async def main() -> None:
                             "type": "video",
                             "width": 1280,
                             "height": 720,
+                            "url": "https://example.com/preview.webp",
                             "urls": {"mp4_240": "https://example.com/video.mp4"},
-                            "thumbnail": {"url": "https://example.com/thumb.jpg"},
+                            "thumbnail": {"url": "https://example.com/thumb.webp"},
                         }
                     ]
                 )
@@ -143,6 +148,48 @@ async def main() -> None:
         assert video_source == "https://example.com/video.mp4"
         assert video_width == 1280
         assert video_height == 720
+
+        if check_ffmpeg():
+            first_video = Path(tmp) / "concat-first.webm"
+            second_video = Path(tmp) / "concat-second.mp4"
+            concat_output = Path(tmp) / "concat-output.mp4"
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=red:s=160x240:d=0.5",
+                    "-c:v",
+                    "libvpx-vp9",
+                    str(first_video),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=blue:s=160x240:d=0.5",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    str(second_video),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            concat_videos([str(first_video), str(second_video)], str(concat_output))
+            assert concat_output.exists()
+            assert concat_output.stat().st_size > 0
 
         cached = await _persist_pending_media(bot, 1001, "https://example.com/image.jpg")
         assert Path(cached).exists()

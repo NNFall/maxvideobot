@@ -49,6 +49,7 @@ from services.generation import (
     run_photo_effect_generation,
     run_text_image_generation,
 )
+from services.logging_utils import shorten
 from services.max_adapter import MaxBotAdapter
 from services.notify import notify_admin
 from services.subscriptions import calc_period, get_plan, get_plans
@@ -191,7 +192,7 @@ def _format_tool_admin_message(title: str, user_id: int, username: str | None, *
         f"Пользователь: <code>{user_id}</code> (@{_html(username or '-')})",
     ]
     for key, value in (details or {}).items():
-        lines.append(f"{_html(key)}: <code>{_html(value)}</code>")
+        lines.append(f"{_html(key)}: <code>{_html(shorten(str(value), 500))}</code>")
     return "\n".join(lines)
 
 
