@@ -474,7 +474,22 @@ python -m compileall main.py config.py max_handlers max_keyboards services datab
 python tools/smoke_local.py
 ```
 
-Результат: будет зафиксирован после локальной и серверной проверки.
+Результат: локально и в контейнере выполнены успешно.
+
+```bash
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+python tools/smoke_local.py
+docker compose exec -T bot python -m compileall main.py config.py max_handlers max_keyboards services database tools
+docker compose exec -T bot python tools/smoke_local.py
+```
+
+После деплоя на сервере обновлены переменные:
+- `KIE_API_KEY` и `REPLICATE_API_TOKEN` под актуальные ключи.
+- `KIE_GROK_VIDEO_MODEL=grok-imagine-video-1.5`.
+- `KIE_GROK_VIDEO_ASPECT_RATIO=auto`.
+- `KIE_GROK_VIDEO_RESOLUTION=480p`.
+- `KIE_GROK_VIDEO_NSFW_CHECKER=0`.
+Перезапуск контейнера выполнен через `docker compose up -d --build --force-recreate bot`.
 
 ### Риски
 
