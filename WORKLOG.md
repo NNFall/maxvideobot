@@ -455,3 +455,28 @@ python tools/smoke_local.py
 ### Риски
 
 - Если MAX начнет отдавать видео не через `mp4_*`, а через новый тип поля, нужно будет дополнить централизованный парсер `get_media_source`.
+
+## 2026-06-17, fallback видео на Kie Grok Imagine Video 1.5
+
+### Сделано
+
+- Добавлен Kie createTask-клиент для модели `grok-imagine-video-1.5`.
+- Для нового fallback используются параметры: `aspect_ratio=auto`, `resolution=480p`, `duration=1..15`, `nsfw_checker=false`.
+- `Создать видео` теперь сначала пробует Replicate, а при отказе/ошибке Replicate переключается на Kie Grok video fallback.
+- Видео-эффекты теперь имеют цепочку: старый Kie video -> Replicate video fallback -> Kie Grok video fallback.
+- `.env.example` дополнен переменными `KIE_GROK_VIDEO_*`.
+- `tools/smoke_local.py` проверяет payload новой Kie-задачи без реального API-вызова.
+
+### Проверки
+
+```bash
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+python tools/smoke_local.py
+```
+
+Результат: будет зафиксирован после локальной и серверной проверки.
+
+### Риски
+
+- Новый fallback все равно зависит от баланса Kie.ai; если на Kie нет кредитов, после отказа Replicate генерация также вернет ошибку и токены пользователю.
+- Slug модели взят из Kie-страницы `https://kie.ai/grok-imagine-video-1.5`; если Kie изменит API slug, нужно поменять `KIE_GROK_VIDEO_MODEL` в `.env`.

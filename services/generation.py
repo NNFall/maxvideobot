@@ -14,6 +14,7 @@ from database import crud
 from services.kie_api import (
     upload_file,
     create_task,
+    create_grok_video_task,
     poll_task,
     extract_result_url,
     create_image_task,
@@ -261,13 +262,23 @@ async def run_effect_generation(
             )
             error_source = 'Replicate (video fallback)'
             image_input = await _resolve_replicate_image_input(bot, photo_file_id, temp_path, config.bot_token)
-            url = await _replicate_video_url(
-                user_id,
-                username,
-                final_prompt,
-                image_input,
-                6,
-            )
+            try:
+                url = await _replicate_video_url(
+                    user_id,
+                    username,
+                    final_prompt,
+                    image_input,
+                    6,
+                )
+            except Exception as replicate_error:
+                logger.warning(
+                    'Replicate video fallback failed, fallback to Kie Grok %s effect_id=%s error=%s',
+                    format_user(user_id, username),
+                    effect_id,
+                    replicate_error,
+                )
+                error_source = 'Kie.ai Grok video fallback'
+                url = await _kie_grok_video_url(user_id, username, final_prompt, temp_path, 6)
 
         await bot.send_video(chat_id, url)
         await bot.send_message(
@@ -411,6 +422,46 @@ async def _replicate_video_url(
         )
         raise replicate_error or RuntimeError('Replicate generation failed')
     return url
+
+
+async def _kie_grok_video_url(
+    user_id: int,
+    username: str | None,
+    final_prompt: str,
+    temp_path: Path,
+    duration: int,
+) -> str:
+    config = load_config()
+
+    async def _kie_grok_once() -> str:
+        logger.info(
+            'Kie Grok video request %s model=%s duration=%s prompt="%s"',
+            format_user(user_id, username),
+            config.kie_grok_video_model,
+            duration,
+            shorten(final_prompt),
+        )
+        image_url = await asyncio.to_thread(upload_file, str(temp_path), config.kie_api_key)
+        task_id = await asyncio.to_thread(
+            create_grok_video_task,
+            image_url,
+            final_prompt,
+            duration,
+            config.kie_api_key,
+            config.kie_api_url,
+            config.kie_grok_video_model,
+            config.kie_grok_video_aspect_ratio,
+            config.kie_grok_video_resolution,
+            config.kie_grok_video_nsfw_checker,
+        )
+        logger.info('Kie Grok video task created task_id=%s %s', task_id, format_user(user_id, username))
+        record = await poll_task(task_id, config.kie_api_key, timeout_sec=900)
+        url = extract_result_url(record)
+        if not url:
+            raise RuntimeError('Kie Grok video result url not found')
+        return url
+
+    return await _with_retries('Kie Grok video generation', user_id, username, _kie_grok_once)
 
 
 async def _replicate_image_urls(
@@ -677,86 +728,16 @@ async def run_custom_generation(
         if config.replicate_aspect_ratio_mode == 'match' and photo_width and photo_height:
             aspect_ratio = closest_aspect_ratio(photo_width, photo_height)
 
-        replicate_error: Exception | None = None
-        url: str | None = None
-        for attempt in range(1, REPLICATE_VIDEO_MAX_ATTEMPTS + 1):
-            try:
-                try:
-                    prediction = await asyncio.to_thread(
-                        create_prediction,
-                        image_input,
-                        final_prompt,
-                        duration,
-                        config.replicate_api_token,
-                        config.replicate_api_url,
-                        config.replicate_model_version,
-                        config.replicate_image_field,
-                        aspect_ratio,
-                    )
-                except Exception:
-                    if aspect_ratio:
-                        logger.warning('Replicate aspect_ratio rejected, retry without. ratio=%s', aspect_ratio)
-                        prediction = await asyncio.to_thread(
-                            create_prediction,
-                            image_input,
-                            final_prompt,
-                            duration,
-                            config.replicate_api_token,
-                            config.replicate_api_url,
-                            config.replicate_model_version,
-                            config.replicate_image_field,
-                            None,
-                        )
-                    else:
-                        raise
-
-                prediction_id = prediction.get('id')
-                if not prediction_id:
-                    raise RuntimeError('Replicate missing prediction id')
-                logger.info(
-                    'Replicate task created prediction_id=%s %s attempt=%s/%s',
-                    prediction_id,
-                    format_user(user_id, username),
-                    attempt,
-                    REPLICATE_VIDEO_MAX_ATTEMPTS,
-                )
-
-                prediction = await poll_prediction(
-                    prediction_id,
-                    config.replicate_api_token,
-                    config.replicate_api_url,
-                    interval_sec=REPLICATE_POLL_INTERVAL_SEC,
-                    timeout_sec=REPLICATE_VIDEO_ATTEMPT_TIMEOUT_SEC,
-                )
-                url = extract_output_url(prediction)
-                if not url:
-                    raise RuntimeError('Replicate output url not found')
-                break
-            except Exception as e:
-                replicate_error = e
-                logger.warning(
-                    'Replicate attempt failed %s attempt=%s/%s error=%s',
-                    format_user(user_id, username),
-                    attempt,
-                    REPLICATE_VIDEO_MAX_ATTEMPTS,
-                    e,
-                )
-                err_text = str(e)
-                if _is_replicate_no_retry_error(e):
-                    break
-                if attempt < REPLICATE_VIDEO_MAX_ATTEMPTS:
-                    if 'status=429' in err_text or 'Too Many Requests' in err_text:
-                        await asyncio.sleep(10 * attempt)
-                    else:
-                        await asyncio.sleep(2)
-
-        if not url:
+        try:
+            url = await _replicate_video_url(user_id, username, final_prompt, image_input, duration, aspect_ratio)
+        except Exception as replicate_error:
             logger.warning(
-                'Replicate failed after retries (no Kie fallback) %s error=%s',
+                'Replicate video failed, fallback to Kie Grok %s error=%s',
                 format_user(user_id, username),
                 replicate_error,
             )
-            raise replicate_error or RuntimeError('Replicate generation failed')
+            error_source = 'Kie.ai Grok video fallback'
+            url = await _kie_grok_video_url(user_id, username, final_prompt, temp_path, duration)
 
         await bot.send_video(chat_id, url)
         await bot.send_message(

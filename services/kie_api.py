@@ -126,6 +126,63 @@ def create_task(
     return str(task_id)
 
 
+def create_grok_video_task(
+    image_url: str,
+    prompt: str,
+    duration: int,
+    api_key: str,
+    api_url: str = DEFAULT_CREATE_TASK_URL,
+    model: str = 'grok-imagine-video-1.5',
+    aspect_ratio: str = 'auto',
+    resolution: str = '480p',
+    nsfw_checker: bool = False,
+    callback_url: str | None = None,
+    timeout_sec: int = 30,
+) -> str:
+    if not api_key:
+        raise RuntimeError('KIE_API_KEY is empty')
+    if not model:
+        raise RuntimeError('KIE_GROK_VIDEO_MODEL is empty')
+
+    duration_int = int(duration)
+    if duration_int < 1 or duration_int > 15:
+        raise ValueError('Kie Grok video duration must be between 1 and 15 seconds')
+
+    payload: dict[str, Any] = {
+        'model': model,
+        'input': {
+            'image_urls': [image_url],
+            'prompt': prompt,
+            'aspect_ratio': aspect_ratio,
+            'resolution': resolution,
+            'duration': duration_int,
+            'nsfw_checker': bool(nsfw_checker),
+        },
+    }
+    if callback_url:
+        payload['callBackUrl'] = callback_url
+
+    response = requests.post(api_url, headers=_headers(api_key), json=payload, timeout=timeout_sec)
+    response.raise_for_status()
+    try:
+        data = response.json()
+    except Exception:
+        raise RuntimeError(f'Kie createTask invalid JSON: {response.text[:500]}')
+
+    if not isinstance(data, dict):
+        raise RuntimeError(f'Kie createTask invalid response: {str(data)[:500]}')
+
+    task_id = None
+    data_block = data.get('data')
+    if isinstance(data_block, dict):
+        task_id = data_block.get('taskId') or data_block.get('task_id')
+    if not task_id:
+        task_id = data.get('taskId') or data.get('task_id')
+    if not task_id:
+        raise RuntimeError(f'Kie createTask missing taskId: {json.dumps(data)[:500]}')
+    return str(task_id)
+
+
 def create_image_task(
     prompt: str,
     model: str,

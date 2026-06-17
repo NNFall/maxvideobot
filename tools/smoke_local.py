@@ -59,8 +59,10 @@ async def main() -> None:
         from max_keyboards.common_kb import help_kb
         from max_keyboards.main_menu import SONG_BOT_URL, main_menu_kb
         from max_keyboards.payment_kb import choose_subscription_kb
+        from services import kie_api
         from services.generation import _build_admin_error_message, _build_user_error_message
         from services.ffmpeg_service import check_ffmpeg, concat_videos
+        from services.kie_api import create_grok_video_task
         from services.replicate_api import encode_image
         from services.subscriptions import get_plans
 
@@ -92,6 +94,39 @@ async def main() -> None:
         image_path = Path(tmp) / "image-with-wrong-extension.jpg"
         image_path.write_bytes(b"RIFF\x00\x00\x00\x00WEBPVP8 ")
         assert encode_image(str(image_path)).startswith("data:image/webp;base64,")
+
+        class FakeKieResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"data": {"taskId": "kie-smoke-task"}}
+
+        kie_posts: list[dict] = []
+        original_kie_post = kie_api.requests.post
+
+        def fake_kie_post(*args, **kwargs):
+            kie_posts.append({"args": args, "kwargs": kwargs})
+            return FakeKieResponse()
+
+        kie_api.requests.post = fake_kie_post
+        try:
+            task_id = create_grok_video_task(
+                "https://example.com/input.jpg",
+                "Smoke prompt",
+                8,
+                "kie-smoke-key",
+            )
+        finally:
+            kie_api.requests.post = original_kie_post
+        assert task_id == "kie-smoke-task"
+        kie_payload = kie_posts[0]["kwargs"]["json"]
+        assert kie_payload["model"] == "grok-imagine-video-1.5"
+        assert kie_payload["input"]["image_urls"] == ["https://example.com/input.jpg"]
+        assert kie_payload["input"]["aspect_ratio"] == "auto"
+        assert kie_payload["input"]["resolution"] == "480p"
+        assert kie_payload["input"]["duration"] == 8
+        assert kie_payload["input"]["nsfw_checker"] is False
 
         await crud.create_promocode(db_path, "SMOKE", 7)
         bot = FakeBot()
