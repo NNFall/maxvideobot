@@ -511,4 +511,9 @@ python tools/smoke_local.py
 python -m compileall main.py config.py max_handlers max_keyboards services database tools
 ```
 
-Результат: локально выполнено успешно.
+Результат: локально и в production-контейнере выполнено успешно.
+
+Production:
+- `/root/maxvideobot/.env` обновлен до `KIE_GROK_VIDEO_MODEL=grok-imagine-video-1-5-preview`.
+- Контейнер пересобран и перезапущен через `docker compose up -d --build --force-recreate bot`.
+- Активный конфиг внутри контейнера: `grok-imagine-video-1-5-preview`, `auto`, `480p`, `False`.
