@@ -121,7 +121,7 @@ async def main() -> None:
             kie_api.requests.post = original_kie_post
         assert task_id == "kie-smoke-task"
         kie_payload = kie_posts[0]["kwargs"]["json"]
-        assert kie_payload["model"] == "grok-imagine-video-1.5"
+        assert kie_payload["model"] == "grok-imagine-video-1-5-preview"
         assert kie_payload["input"]["image_urls"] == ["https://example.com/input.jpg"]
         assert kie_payload["input"]["aspect_ratio"] == "auto"
         assert kie_payload["input"]["resolution"] == "480p"

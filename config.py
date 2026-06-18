@@ -98,7 +98,7 @@ def load_config() -> Config:
         kie_api_url=_get_env("KIE_API_URL", "https://api.kie.ai/api/v1/jobs/createTask") or "",
         kie_image_model=_get_env("KIE_IMAGE_MODEL", "grok-imagine/image-to-image") or "grok-imagine/image-to-image",
         kie_text_image_model=_get_env("KIE_TEXT_IMAGE_MODEL", "grok-imagine/text-to-image") or "grok-imagine/text-to-image",
-        kie_grok_video_model=_get_env("KIE_GROK_VIDEO_MODEL", "grok-imagine-video-1.5") or "grok-imagine-video-1.5",
+        kie_grok_video_model=_get_env("KIE_GROK_VIDEO_MODEL", "grok-imagine-video-1-5-preview") or "grok-imagine-video-1-5-preview",
         kie_grok_video_aspect_ratio=_get_env("KIE_GROK_VIDEO_ASPECT_RATIO", "auto") or "auto",
         kie_grok_video_resolution=_get_env("KIE_GROK_VIDEO_RESOLUTION", "480p") or "480p",
         kie_grok_video_nsfw_checker=_bool_env("KIE_GROK_VIDEO_NSFW_CHECKER", False),

@@ -460,7 +460,7 @@ python tools/smoke_local.py
 
 ### Сделано
 
-- Добавлен Kie createTask-клиент для модели `grok-imagine-video-1.5`.
+- Добавлен Kie createTask-клиент для модели `grok-imagine-video-1-5-preview`.
 - Для нового fallback используются параметры: `aspect_ratio=auto`, `resolution=480p`, `duration=1..15`, `nsfw_checker=false`.
 - `Создать видео` теперь сначала пробует Replicate, а при отказе/ошибке Replicate переключается на Kie Grok video fallback.
 - Видео-эффекты теперь имеют цепочку: старый Kie video -> Replicate video fallback -> Kie Grok video fallback.
@@ -485,7 +485,7 @@ docker compose exec -T bot python tools/smoke_local.py
 
 После деплоя на сервере обновлены переменные:
 - `KIE_API_KEY` и `REPLICATE_API_TOKEN` под актуальные ключи.
-- `KIE_GROK_VIDEO_MODEL=grok-imagine-video-1.5`.
+- `KIE_GROK_VIDEO_MODEL=grok-imagine-video-1-5-preview`.
 - `KIE_GROK_VIDEO_ASPECT_RATIO=auto`.
 - `KIE_GROK_VIDEO_RESOLUTION=480p`.
 - `KIE_GROK_VIDEO_NSFW_CHECKER=0`.
@@ -494,4 +494,21 @@ docker compose exec -T bot python tools/smoke_local.py
 ### Риски
 
 - Новый fallback все равно зависит от баланса Kie.ai; если на Kie нет кредитов, после отказа Replicate генерация также вернет ошибку и токены пользователю.
-- Slug модели взят из Kie-страницы `https://kie.ai/grok-imagine-video-1.5`; если Kie изменит API slug, нужно поменять `KIE_GROK_VIDEO_MODEL` в `.env`.
+- Slug модели взят из Kie-документации Create Task для Grok Imagine Video 1.5; если Kie изменит API slug, нужно поменять `KIE_GROK_VIDEO_MODEL` в `.env`.
+
+## 2026-06-18, исправление slug Kie Grok video
+
+### Сделано
+
+- Исправлен unsupported model error от Kie: вместо `grok-imagine-video-1.5` используется `grok-imagine-video-1-5-preview`.
+- Обновлены дефолты в `config.py`, `services/kie_api.py`, `.env.example` и smoke-проверка payload.
+- На production нужно обновить `/root/maxvideobot/.env`: `KIE_GROK_VIDEO_MODEL=grok-imagine-video-1-5-preview`.
+
+### Проверки
+
+```bash
+python tools/smoke_local.py
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+```
+
+Результат: локально выполнено успешно.

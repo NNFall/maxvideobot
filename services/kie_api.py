@@ -132,7 +132,7 @@ def create_grok_video_task(
     duration: int,
     api_key: str,
     api_url: str = DEFAULT_CREATE_TASK_URL,
-    model: str = 'grok-imagine-video-1.5',
+    model: str = 'grok-imagine-video-1-5-preview',
     aspect_ratio: str = 'auto',
     resolution: str = '480p',
     nsfw_checker: bool = False,
