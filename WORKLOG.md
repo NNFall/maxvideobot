@@ -534,7 +534,14 @@ python tools/smoke_local.py
 python -m compileall main.py config.py max_handlers max_keyboards services database tools
 ```
 
-Результат: локально выполнено успешно; серверная проверка будет зафиксирована после деплоя.
+Результат: локально и в production-контейнере выполнено успешно.
+
+Production:
+- `/root/maxvideobot/.env` обновлен до `MAX_API_URL=https://platform-api2.max.ru`.
+- Контейнер пересобран и перезапущен через `docker compose up -d --build --force-recreate bot`.
+- Проверка TLS из контейнера к `https://platform-api2.max.ru` больше не падает на `CERTIFICATE_VERIFY_FAILED`.
+- `maxapi` `get_me` через `platform-api2` успешен, бот авторизован как `id644009650098_3_bot`.
+- Лог старта показывает `MAX API URL: https://platform-api2.max.ru` и `MAX polling started`.
 
 ### Риски
 
