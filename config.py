@@ -26,6 +26,7 @@ def _bool_env(name: str, default: bool = False) -> bool:
 @dataclass(frozen=True)
 class Config:
     max_bot_token: str
+    max_api_url: str
     max_use_webhook: bool
     max_webhook_url: str
     max_webhook_secret: str
@@ -86,6 +87,7 @@ def load_config() -> Config:
 
     return Config(
         max_bot_token=_get_env("MAX_BOT_TOKEN", "") or "",
+        max_api_url=_get_env("MAX_API_URL", "https://platform-api2.max.ru") or "https://platform-api2.max.ru",
         max_use_webhook=_bool_env("MAX_USE_WEBHOOK", False),
         max_webhook_url=_get_env("MAX_WEBHOOK_URL", "") or "",
         max_webhook_secret=_get_env("MAX_WEBHOOK_SECRET", "") or "",

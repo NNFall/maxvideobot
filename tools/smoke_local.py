@@ -47,9 +47,12 @@ async def main() -> None:
         os.environ["MEDIA_TEMP_DIR"] = media_dir
         os.environ["MEDIA_DEMO_DIR"] = demo_dir
         os.environ.setdefault("MAX_BOT_TOKEN", "smoke-token")
+        os.environ["MAX_API_URL"] = "https://platform-api2.max.ru"
         os.environ["ADMIN_IDS"] = "1001"
         os.environ["ADMIN_NOTIFY_IDS"] = "1001"
 
+        from config import load_config
+        from main import _create_bot
         from database import crud
         from database.db import setup
         from max_handlers.router import _cleanup_pending_action_for_tx, _cleanup_pending_media, _format_tool_admin_message, _handle_admin_command, _persist_demo_media, _persist_pending_media, _process_start, _show_balance, router
@@ -67,6 +70,12 @@ async def main() -> None:
         from services.subscriptions import get_plans
 
         await setup(db_path)
+
+        cfg = load_config()
+        max_bot = _create_bot(cfg)
+        assert cfg.max_api_url == "https://platform-api2.max.ru"
+        assert max_bot.api_url == "https://platform-api2.max.ru"
+        await max_bot.close_session()
 
         kb = main_menu_kb()
         assert kb is not None

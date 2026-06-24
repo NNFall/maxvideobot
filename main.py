@@ -7,7 +7,7 @@ from maxapi import Bot, Dispatcher
 from maxapi.enums.parse_mode import ParseMode
 from maxapi.types import BotCommand
 
-from config import load_config
+from config import Config, load_config
 from database.db import setup as setup_db
 from max_handlers import all_routers
 from max_handlers.router import pending_yookassa_watcher
@@ -37,6 +37,13 @@ async def _set_commands(bot: Bot) -> None:
         logging.getLogger(__name__).warning("Could not set MAX commands: %s", e)
 
 
+def _create_bot(cfg: Config) -> Bot:
+    bot = Bot(token=cfg.max_bot_token, format=ParseMode.HTML)
+    if cfg.max_api_url:
+        bot.set_api_url(cfg.max_api_url.rstrip("/"))
+    return bot
+
+
 async def main() -> None:
     cfg = load_config()
     if not cfg.max_bot_token:
@@ -50,7 +57,8 @@ async def main() -> None:
 
     await setup_db(cfg.database_path)
 
-    bot = Bot(token=cfg.max_bot_token, format=ParseMode.HTML)
+    bot = _create_bot(cfg)
+    logger.info("MAX API URL: %s", cfg.max_api_url)
     adapter = MaxBotAdapter(bot)
     dp = Dispatcher(use_create_task=True)
     dp.include_routers(*all_routers)

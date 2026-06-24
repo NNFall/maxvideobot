@@ -517,3 +517,25 @@ Production:
 - `/root/maxvideobot/.env` обновлен до `KIE_GROK_VIDEO_MODEL=grok-imagine-video-1-5-preview`.
 - Контейнер пересобран и перезапущен через `docker compose up -d --build --force-recreate bot`.
 - Активный конфиг внутри контейнера: `grok-imagine-video-1-5-preview`, `auto`, `480p`, `False`.
+
+## 2026-06-24, переход MAX API на platform-api2
+
+### Сделано
+
+- Добавлена настройка `MAX_API_URL`, дефолт: `https://platform-api2.max.ru`.
+- Создание MAX `Bot` вынесено в helper, который вызывает `bot.set_api_url(config.max_api_url)`.
+- Docker-образ теперь устанавливает `ca-certificates` и добавляет Russian Trusted Root CA + Russian Trusted Sub CA в системный trust store.
+- `.env.example`, `README.md`, `MAX_MIGRATION_PLAN.md` и `tools/smoke_local.py` обновлены под новый URL.
+
+### Проверки
+
+```bash
+python tools/smoke_local.py
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+```
+
+Результат: локально выполнено успешно; серверная проверка будет зафиксирована после деплоя.
+
+### Риски
+
+- `platform-api2.max.ru` использует цепочку Минцифры; если MAX изменит промежуточный сертификат, Docker trust store нужно будет обновить.

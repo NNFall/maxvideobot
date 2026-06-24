@@ -59,7 +59,8 @@
 - подключает routers;
 - устанавливает команды;
 - запускает `subscription_watcher`, `pending_yookassa_watcher`, `smart_mailing_loop`;
-- поддерживает polling и webhook через `MAX_USE_WEBHOOK`.
+- поддерживает polling и webhook через `MAX_USE_WEBHOOK`;
+- использует `MAX_API_URL` для перехода MAX API на `https://platform-api2.max.ru`.
 
 ### Этап 2. Перенос пользовательских сценариев — первый проход завершен
 
@@ -141,6 +142,7 @@ FSM реализован в `max_handlers/state.py`.
 - `database/seed_effects.py` переведен на `DATABASE_PATH` из общего конфига.
 - добавлен `.dockerignore` для безопасного Docker-контекста без `.env`, локальных БД/медиа/cache и `telegram_video_bot`.
 - `requirements.txt` закрепляет `maxapi==1.0.0`, под который проверялась текущая реализация.
+- Docker-образ добавляет Russian Trusted Root CA и Russian Trusted Sub CA для TLS-проверки `platform-api2.max.ru`.
 - admin-demo из MAX сохраняются в `MEDIA_DEMO_DIR`, чтобы не хранить временные attachment URL.
 - `database/seed_effects.py` больше не записывает старые Telegram `file_id` в demo-поля и не затирает существующие MAX-demo.
 - `MAX_BOT_LINK_BASE` может быть полным MAX URL бота; deeplink и YooKassa return URL строятся через общий helper.
