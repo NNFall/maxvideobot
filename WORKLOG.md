@@ -562,4 +562,10 @@ python tools/smoke_local.py
 python -m compileall main.py config.py max_handlers max_keyboards services database tools
 ```
 
-Результат: локально выполнено успешно; серверная проверка будет зафиксирована после деплоя.
+Результат: локально и в production-контейнере выполнено успешно.
+
+Production:
+- Код подтянут в `/root/maxvideobot` через `git pull --ff-only origin main`.
+- Контейнер пересобран и перезапущен через `docker compose up -d --build --force-recreate bot`.
+- Проверено внутри контейнера: `CYCLE_SLEEP_SEC=86400`.
+- Лог старта чистый: `MAX polling started`, бот авторизован как `id644009650098_3_bot`.
