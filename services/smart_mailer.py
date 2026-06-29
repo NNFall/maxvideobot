@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 SEND_RATE_PER_SEC = 25
 PREVIEW_LEAD_SEC = 30 * 60
-CYCLE_SLEEP_SEC = 12 * 60 * 60
+CYCLE_SLEEP_SEC = 24 * 60 * 60
 PROGRESS_TICK_SEC = 60
 
 
@@ -201,7 +201,7 @@ async def smart_mailing_loop(bot) -> None:
                 "✅ <b>Рассылка завершена.</b>\n"
                 f"Успешно доставлено: <b>{sent}</b>\n"
                 f"Не доставлено (бот заблокирован): <b>{blocked}</b>\n"
-                "Следующая рассылка через 12 часов."
+                "Следующая рассылка через 24 часа."
             )
             if failed:
                 finish_text += f"\nОшибок: <b>{failed}</b>"

@@ -67,9 +67,12 @@ async def main() -> None:
         from services.ffmpeg_service import check_ffmpeg, concat_videos
         from services.kie_api import create_grok_video_task
         from services.replicate_api import encode_image
+        from services.smart_mailer import CYCLE_SLEEP_SEC
         from services.subscriptions import get_plans
 
         await setup(db_path)
+
+        assert CYCLE_SLEEP_SEC == 24 * 60 * 60
 
         cfg = load_config()
         max_bot = _create_bot(cfg)
