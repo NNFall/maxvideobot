@@ -320,6 +320,40 @@ async def main() -> None:
         await _show_balance(bot, 1003, 1003)
         assert "❌ <b>Подписка не активна</b>" in (bot.messages[-1][1] or "")
 
+        await crud.upsert_subscription(
+            db_path,
+            user_id=1004,
+            plan_id="week",
+            provider="yookassa",
+            auto_renew=1,
+            payment_method_id="pm-cancel-me",
+            current_period_start="2026-05-01T00:00:00",
+            current_period_end="2099-01-01T00:00:00",
+            status="active",
+        )
+        await crud.cancel_subscription(db_path, 1004)
+        canceled_sub = await crud.get_subscription(db_path, 1004)
+        assert canceled_sub["status"] == "inactive"
+        assert int(canceled_sub["auto_renew"]) == 0
+        assert canceled_sub["payment_method_id"] is None
+
+        await crud.upsert_subscription(
+            db_path,
+            user_id=1005,
+            plan_id="week",
+            provider="yookassa",
+            auto_renew=1,
+            payment_method_id="pm-expire-me",
+            current_period_start="2026-05-01T00:00:00",
+            current_period_end="2026-05-08T00:00:00",
+            status="active",
+        )
+        await crud.mark_subscription_status(db_path, 1005, "expired")
+        expired_sub = await crud.get_subscription(db_path, 1005)
+        assert expired_sub["status"] == "expired"
+        assert int(expired_sub["auto_renew"]) == 0
+        assert expired_sub["payment_method_id"] is None
+
         print("SMOKE OK")
         print(f"db={db_path}")
         print(f"messages={len(bot.messages)}")

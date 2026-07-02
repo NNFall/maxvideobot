@@ -569,3 +569,25 @@ Production:
 - Контейнер пересобран и перезапущен через `docker compose up -d --build --force-recreate bot`.
 - Проверено внутри контейнера: `CYCLE_SLEEP_SEC=86400`.
 - Лог старта чистый: `MAX polling started`, бот авторизован как `id644009650098_3_bot`.
+
+## 2026-07-02, аудит автопродления подписок
+
+### Сделано
+
+- Проверена production-БД на рассинхрон подписок:
+  - `status != 'active' AND auto_renew = 1`: 0 строк;
+  - `status = 'expired' AND auto_renew = 1`: 0 строк;
+  - `auto_renew = 1` без `payment_method_id`: 0 строк;
+  - просроченные `auto_renew = 1`: 0 строк.
+- `cancel_subscription` теперь вместе с `auto_renew=0` очищает `payment_method_id`.
+- `mark_subscription_status` при переводе в `inactive`, `expired`, `canceled` очищает `auto_renew` и `payment_method_id`.
+- `tools/smoke_local.py` проверяет, что отмененная и истекшая подписка не оставляют платежный метод для автосписаний.
+
+### Проверки
+
+```bash
+python tools/smoke_local.py
+python -m compileall main.py config.py max_handlers max_keyboards services database tools
+```
+
+Результат: локально выполнено успешно; серверная проверка будет зафиксирована после деплоя.
