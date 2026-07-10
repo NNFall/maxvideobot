@@ -592,7 +592,16 @@ python -m compileall main.py config.py max_handlers max_keyboards services datab
 python tools/smoke_local.py
 ```
 
-Обе команды завершились успешно. Production-проверка выполняется после пересборки контейнера.
+Обе команды завершились успешно.
+
+### Production
+
+- Код `13ee0ae` подтянут на сервер и контейнер `maxvideobot-bot-1` пересобран через `docker compose up -d --build --force-recreate bot`.
+- После пересоздания контейнер находится в состоянии `Up`; в логе есть `MAX polling started` и информация о боте `@id644009650098_3_bot`.
+- Внутри production-контейнера снова успешно выполнены `python -m compileall main.py config.py max_handlers max_keyboards services database tools` и `python tools/smoke_local.py`.
+- Повторный `get_me` через `platform-api2.max.ru` успешен для `@id644009650098_3_bot`.
+- Ответы пользователям до снятия `Profile is limited` со стороны MAX остаются недоступны. Перезапуск контейнера и смена токена это ограничение не снимают.
+- При старте есть отдельное предупреждение `Could not set MAX commands` с `404 method.not.found` для устаревшего `bot.change_info()` из используемой версии `maxapi`. Оно не связано с отказом отправки сообщений, но список slash-команд следует вынести в отдельное обновление клиента MAX API.
 
 ## 2026-07-02, аудит автопродления подписок
 

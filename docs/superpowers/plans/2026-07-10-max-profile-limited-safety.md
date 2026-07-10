@@ -16,7 +16,7 @@
 - Modify: `tools/smoke_local.py`
 - Modify: `services/smart_mailer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 from services.smart_mailer import _is_profile_limited_error
@@ -25,20 +25,20 @@ assert _is_profile_limited_error(RuntimeError("Can't start chat. Profile is limi
 assert not _is_profile_limited_error(RuntimeError("chat is blocked"))
 ```
 
-- [ ] **Step 2: Run the smoke test to verify it fails**
+- [x] **Step 2: Run the smoke test to verify it fails**
 
 Run: `python tools/smoke_local.py`
 
 Expected: import failure because `_is_profile_limited_error` does not yet exist.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 ```python
 def _is_profile_limited_error(error: Exception) -> bool:
     return "profile is limited" in str(error).lower()
 ```
 
-- [ ] **Step 4: Run the smoke test to verify it passes**
+- [x] **Step 4: Run the smoke test to verify it passes**
 
 Run: `python tools/smoke_local.py`
 
@@ -50,7 +50,7 @@ Expected: `SMOKE OK`.
 - Modify: `services/smart_mailer.py`
 - Modify: `tools/smoke_local.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 class ProfileLimitedBot:
@@ -60,13 +60,13 @@ class ProfileLimitedBot:
 assert await _send_promo(ProfileLimitedBot(), 1, effect) == "platform_limited"
 ```
 
-- [ ] **Step 2: Run the smoke test to verify it fails**
+- [x] **Step 2: Run the smoke test to verify it fails**
 
 Run: `python tools/smoke_local.py`
 
 Expected: the result is currently `failed`.
 
-- [ ] **Step 3: Write the minimal implementation**
+- [x] **Step 3: Write the minimal implementation**
 
 ```python
 if _is_profile_limited_error(e):
@@ -75,7 +75,7 @@ if _is_profile_limited_error(e):
 
 Then exit the recipient loop when the status is `platform_limited`; the existing state write schedules the next attempt in 24 hours.
 
-- [ ] **Step 4: Run the smoke test and compilation checks**
+- [x] **Step 4: Run the smoke test and compilation checks**
 
 Run: `python -m compileall main.py config.py max_handlers max_keyboards services database tools`
 
@@ -88,11 +88,11 @@ Expected: both commands exit with code 0.
 **Files:**
 - Modify: `WORKLOG.md`
 
-- [ ] **Step 1: Build and recreate the `bot` service**
+- [x] **Step 1: Build and recreate the `bot` service**
 
 Run: `docker compose up -d --build --force-recreate bot`
 
-- [ ] **Step 2: Verify process and API connectivity**
+- [x] **Step 2: Verify process and API connectivity**
 
 Run: `docker compose ps`
 
@@ -102,6 +102,6 @@ Run: the existing `get_me` probe inside the container.
 
 Expected: the container is running, polling starts, and `get_me` returns `@id644009650098_3_bot`.
 
-- [ ] **Step 3: Record the incident**
+- [x] **Step 3: Record the incident**
 
 Document the observed `403 access.denied` platform response and that restoring actual replies requires MAX to lift the profile restriction.
