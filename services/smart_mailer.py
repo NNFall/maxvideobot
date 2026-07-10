@@ -21,6 +21,10 @@ def _html(value) -> str:
     return escape(str(value), quote=False)
 
 
+def _is_profile_limited_error(error: Exception) -> bool:
+    return "profile is limited" in str(error).lower()
+
+
 def _effect_type_title(effect: dict) -> str:
     return "Фото" if effect.get("type") == "photo" else "Видео"
 
@@ -71,6 +75,9 @@ async def _send_promo(bot, user_id: int, effect: dict) -> str:
         return "sent"
     except Exception as e:
         msg = str(e).lower()
+        if _is_profile_limited_error(e):
+            logger.error("Mailer: MAX profile is limited; pausing current mailing cycle user_id=%s", user_id)
+            return "platform_limited"
         if "blocked" in msg or "forbidden" in msg:
             logger.info("Mailer: user blocked bot user_id=%s", user_id)
             return "blocked"
@@ -180,6 +187,9 @@ async def smart_mailing_loop(bot) -> None:
                 if await crud.is_subscription_active(cfg.database_path, user_id, now_iso):
                     continue
                 status = await _send_promo(bot, user_id, effect)
+                if status == "platform_limited":
+                    logger.error("Mailer stopped: MAX profile is limited; next scheduled cycle will retry after the restriction is lifted")
+                    break
                 if status == "sent":
                     sent += 1
                 elif status == "blocked":

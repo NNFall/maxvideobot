@@ -67,12 +67,90 @@ async def main() -> None:
         from services.ffmpeg_service import check_ffmpeg, concat_videos
         from services.kie_api import create_grok_video_task
         from services.replicate_api import encode_image
-        from services.smart_mailer import CYCLE_SLEEP_SEC
+        from services import smart_mailer
+        from services.smart_mailer import CYCLE_SLEEP_SEC, _is_profile_limited_error, _send_promo
         from services.subscriptions import get_plans
 
         await setup(db_path)
 
         assert CYCLE_SLEEP_SEC == 24 * 60 * 60
+        assert _is_profile_limited_error(RuntimeError("Can't start chat. Profile is limited"))
+        assert not _is_profile_limited_error(RuntimeError("chat is blocked"))
+
+        class ProfileLimitedBot:
+            async def send_message(self, *args, **kwargs):
+                raise RuntimeError("Can't start chat. Profile is limited")
+
+        profile_limited_status = await _send_promo(
+            ProfileLimitedBot(),
+            1001,
+            {"id": 1, "type": "video", "button_name": "Smoke"},
+        )
+        assert profile_limited_status == "platform_limited"
+
+        mailer_originals = {
+            "get_mailer_state": smart_mailer.crud.get_mailer_state,
+            "list_effects": smart_mailer.crud.list_effects,
+            "list_active_subscription_user_ids": smart_mailer.crud.list_active_subscription_user_ids,
+            "list_user_ids": smart_mailer.crud.list_user_ids,
+            "is_subscription_active": smart_mailer.crud.is_subscription_active,
+            "set_mailer_state": smart_mailer.crud.set_mailer_state,
+            "send_promo": smart_mailer._send_promo,
+        }
+        sent_to: list[int] = []
+        mailer_state_written = asyncio.Event()
+        release_mailer = asyncio.Event()
+
+        async def fake_get_mailer_state(_db_path):
+            return {}
+
+        async def fake_list_effects(_db_path, active_only=True, effect_type=None):
+            if effect_type == "photo":
+                return [{"id": 1, "type": "photo", "button_name": "Smoke"}]
+            return []
+
+        async def fake_list_active_subscription_user_ids(_db_path, _now):
+            return []
+
+        async def fake_list_user_ids(_db_path):
+            return [1001, 1002]
+
+        async def fake_is_subscription_active(_db_path, _user_id, _now):
+            return False
+
+        async def fake_set_mailer_state(*args, **kwargs):
+            mailer_state_written.set()
+            await release_mailer.wait()
+
+        async def fake_send_promo(_bot, user_id, _effect):
+            sent_to.append(user_id)
+            return "platform_limited"
+
+        smart_mailer.crud.get_mailer_state = fake_get_mailer_state
+        smart_mailer.crud.list_effects = fake_list_effects
+        smart_mailer.crud.list_active_subscription_user_ids = fake_list_active_subscription_user_ids
+        smart_mailer.crud.list_user_ids = fake_list_user_ids
+        smart_mailer.crud.is_subscription_active = fake_is_subscription_active
+        smart_mailer.crud.set_mailer_state = fake_set_mailer_state
+        smart_mailer._send_promo = fake_send_promo
+        mailer_task = asyncio.create_task(smart_mailer.smart_mailing_loop(FakeBot()))
+        try:
+            await asyncio.wait_for(mailer_state_written.wait(), timeout=2)
+            assert sent_to == [1001]
+        finally:
+            release_mailer.set()
+            mailer_task.cancel()
+            try:
+                await mailer_task
+            except asyncio.CancelledError:
+                pass
+            smart_mailer.crud.get_mailer_state = mailer_originals["get_mailer_state"]
+            smart_mailer.crud.list_effects = mailer_originals["list_effects"]
+            smart_mailer.crud.list_active_subscription_user_ids = mailer_originals["list_active_subscription_user_ids"]
+            smart_mailer.crud.list_user_ids = mailer_originals["list_user_ids"]
+            smart_mailer.crud.is_subscription_active = mailer_originals["is_subscription_active"]
+            smart_mailer.crud.set_mailer_state = mailer_originals["set_mailer_state"]
+            smart_mailer._send_promo = mailer_originals["send_promo"]
 
         cfg = load_config()
         max_bot = _create_bot(cfg)
