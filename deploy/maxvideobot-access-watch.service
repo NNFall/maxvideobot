@@ -1,0 +1,12 @@
+[Unit]
+Description=Check MAX generator delivery and notify administrators
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/maxvideobot
+ExecStart=/usr/bin/python3 /root/maxvideobot/tools/run_max_access_watch.py
+TimeoutStartSec=300
+UMask=0077

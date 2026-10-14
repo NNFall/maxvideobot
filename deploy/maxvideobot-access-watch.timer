@@ -1,0 +1,11 @@
+[Unit]
+Description=Check MAX generator profile every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:00:00 Europe/Samara
+Persistent=true
+AccuracySec=1min
+Unit=maxvideobot-access-watch.service
+
+[Install]
+WantedBy=timers.target
